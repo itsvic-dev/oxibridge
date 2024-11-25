@@ -16,7 +16,7 @@
       packages = forAllSystems (
         system:
         let
-          pkgs = nixpkgsFor.${system}.pkgsStatic;
+          pkgs = nixpkgsFor.${system};
         in
         {
           default = pkgs.rustPlatform.buildRustPackage rec {
@@ -26,6 +26,10 @@
             cargoLock = {
               lockFile = ./Cargo.lock;
             };
+
+            nativeBuildInputs = with pkgs; [ pkg-config ];
+
+            buildInputs = with pkgs; [ openssl.dev ];
           };
         }
       );
