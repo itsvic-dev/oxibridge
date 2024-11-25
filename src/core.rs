@@ -1,5 +1,6 @@
 use color_eyre::Result;
 use std::{env::temp_dir, fs, path::PathBuf};
+use tracing::debug;
 
 #[derive(Debug)]
 pub struct Author {
@@ -25,6 +26,13 @@ pub struct Attachment {
 pub struct File {
     pub name: String,
     pub path: PathBuf,
+}
+
+impl Drop for File {
+    fn drop(&mut self) {
+        debug!("removing file {:?}", &self.path);
+        fs::remove_file(&self.path).expect("failed to remove file");
+    }
 }
 
 pub fn get_tmp_dir() -> Result<PathBuf> {
