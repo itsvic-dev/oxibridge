@@ -8,14 +8,11 @@ pub enum Source {
     Telegram,
 }
 
-/**
-Broadcasts a message coming from a source channel to other channels.
-*/
-#[instrument(skip(message, source))]
+///
+/// Broadcasts a message coming from a source channel to other channels.
+///
+#[instrument]
 pub async fn broadcast(message: &Message, source: Source) -> Result<()> {
-    // Err(eyre!("not implemented"))
-    debug!("to broadcast: {message:?} from {source:?}");
-
     if source != Source::Discord {
         discord::broadcast_message(&message).await?;
     }
