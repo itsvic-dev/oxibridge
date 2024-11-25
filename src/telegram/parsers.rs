@@ -27,9 +27,9 @@ pub async fn to_core_message(bot: Bot, m: Message) -> color_eyre::Result<core::M
                     }],
                 )
             }
-            _ => ("Unknown media attached".to_owned(), vec![]),
+            _ => ("[Unknown media kind]".to_owned(), vec![]),
         },
-        _ => ("Unknown message kind".to_owned(), vec![]),
+        _ => ("[Unknown message kind]".to_owned(), vec![]),
     };
 
     Ok(core::Message {
