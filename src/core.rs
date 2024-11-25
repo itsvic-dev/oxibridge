@@ -1,3 +1,6 @@
+use color_eyre::Result;
+use std::{env::temp_dir, fs, path::PathBuf};
+
 #[derive(Debug)]
 pub struct Author {
     pub display_name: String,
@@ -21,5 +24,15 @@ pub struct Attachment {
 #[derive(Debug, Clone)]
 pub struct File {
     pub name: String,
-    pub bytes: Box<[u8]>,
+    pub path: PathBuf,
+}
+
+pub fn get_tmp_dir() -> Result<PathBuf> {
+    let path = temp_dir().join("oxibridge");
+
+    if !fs::exists(&path)? {
+        fs::create_dir_all(&path)?;
+    }
+
+    Ok(path.into())
 }

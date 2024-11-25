@@ -4,6 +4,7 @@ use tracing_subscriber::{
     fmt::writer::MakeWriterExt, layer::SubscriberExt, util::SubscriberInitExt,
 };
 
+mod broadcast;
 mod core;
 mod telegram;
 
@@ -15,12 +16,14 @@ async fn main() -> Result<()> {
                 .without_time()
                 .with_writer(std::io::stdout.with_max_level(Level::DEBUG)),
         )
+        .with(tracing_error::ErrorLayer::default())
         .init();
 
     color_eyre::install()?;
 
     info!("hello, world!");
-    telegram::start().await;
+
+    tokio::join!(telegram::start());
 
     Ok(())
 }
