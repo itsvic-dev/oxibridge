@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 color-eyre = "0.6.3"
+serenity = "0.12.4"
 teloxide = { version = "0.13.0", features = ["macros"] }
 tokio = { version = "1.41.1", features = ["rt-multi-thread", "macros"] }
 tracing = "0.1.40"

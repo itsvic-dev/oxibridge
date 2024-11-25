@@ -6,6 +6,7 @@ use tracing_subscriber::{
 
 mod broadcast;
 mod core;
+mod discord;
 mod telegram;
 
 #[tokio::main]
@@ -23,7 +24,7 @@ async fn main() -> Result<()> {
 
     info!("hello, world!");
 
-    tokio::join!(telegram::start());
+    tokio::join!(telegram::start(), discord::start());
 
     Ok(())
 }
