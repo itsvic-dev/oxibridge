@@ -2,7 +2,7 @@
   description = "A very basic flake";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/dd78a15b79aa3f741d16deadf209f6074938af82";
   };
 
   outputs =
@@ -28,7 +28,6 @@
             };
 
             nativeBuildInputs = with pkgs; [ pkg-config ];
-
             buildInputs = with pkgs; [ openssl.dev ];
           };
         }
