@@ -26,7 +26,7 @@ impl Broadcaster {
     pub async fn broadcast(&self, message: &Message, source: Source) -> Result<()> {
         for receiver in &self.sources {
             if receiver.get_receiver_source() != source {
-                receiver.receive(&message).await?;
+                receiver.receive(message).await?;
             }
         }
 

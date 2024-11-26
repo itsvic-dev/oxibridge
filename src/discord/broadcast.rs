@@ -23,7 +23,7 @@ impl BroadcastReceiver for DiscordBroadcastReceiver {
 
         let builder = ExecuteWebhook::new()
             .content(&message.content)
-            .username(&message.author.full_name());
+            .username(message.author.full_name());
 
         let mut attachments: Vec<CreateAttachment> = vec![];
         for file in &message.attachments {

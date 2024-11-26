@@ -22,7 +22,7 @@ impl BroadcastReceiver for TelegramBridge {
             .replace("]", "\\]")
             .replace(".", "\\.");
 
-        if message.attachments.len() > 0 {
+        if !message.attachments.is_empty() {
             todo!();
         } else {
             self.bot

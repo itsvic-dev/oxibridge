@@ -57,5 +57,5 @@ pub fn get_tmp_dir() -> Result<PathBuf> {
         fs::create_dir_all(&path)?;
     }
 
-    Ok(path.into())
+    Ok(path)
 }

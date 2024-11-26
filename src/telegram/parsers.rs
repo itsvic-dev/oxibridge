@@ -12,7 +12,7 @@ use tracing::*;
 #[instrument(skip(bot, m))]
 pub async fn to_core_message(bot: Bot, m: Message) -> color_eyre::Result<core::Message> {
     let tg_author = m.from.as_ref().unwrap();
-    let core_author = to_core_author(bot.clone(), &tg_author).await?;
+    let core_author = to_core_author(bot.clone(), tg_author).await?;
 
     let (content, attachments) = match &m.kind {
         MessageKind::Common(common) => match &common.media_kind {
@@ -67,18 +67,18 @@ pub async fn to_core_message(bot: Bot, m: Message) -> color_eyre::Result<core::M
 
     Ok(core::Message {
         author: core_author,
-        content: content,
-        attachments: attachments,
+        content,
+        attachments,
     })
 }
 
 #[instrument(skip(bot))]
 async fn to_core_author(bot: Bot, author: &types::User) -> color_eyre::Result<core::Author> {
     let photos = bot.get_user_profile_photos(author.id).await?;
-    let photo = photos.photos.get(0);
+    let photo = photos.photos.first();
 
     let core_file = match photo {
-        Some(photo) => match photo_to_core_file(bot, &photo).await {
+        Some(photo) => match photo_to_core_file(bot, photo).await {
             Ok(file) => Some(file),
             Err(_) => None,
         },
@@ -92,11 +92,8 @@ async fn to_core_author(bot: Bot, author: &types::User) -> color_eyre::Result<co
     })
 }
 
-pub async fn photo_to_core_file(
-    bot: Bot,
-    photo: &Vec<PhotoSize>,
-) -> color_eyre::Result<core::File> {
-    let photo = photo.get(photo.len() - 1).unwrap();
+pub async fn photo_to_core_file(bot: Bot, photo: &[PhotoSize]) -> color_eyre::Result<core::File> {
+    let photo = photo.last().unwrap();
     let file = bot.get_file(&photo.file.id).await?;
     to_core_file(bot, &file).await
 }
@@ -116,6 +113,6 @@ pub async fn to_core_file(
 
     Ok(core::File {
         name: file.path.replace("/", "_"),
-        path: path,
+        path,
     })
 }
