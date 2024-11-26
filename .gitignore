@@ -1,5 +1,5 @@
 /target
 .direnv
 .envrc
-.env
+config.yml
 result

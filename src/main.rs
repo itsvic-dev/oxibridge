@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use broadcast::Broadcaster;
-use color_eyre::Result;
+use color_eyre::{eyre::Result, Section};
 use tokio::sync::Mutex;
 use tracing::*;
 use tracing_subscriber::{
@@ -9,9 +9,11 @@ use tracing_subscriber::{
 };
 
 mod broadcast;
+mod config;
 mod core;
 mod discord;
 mod telegram;
+pub use config::Config;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -28,9 +30,18 @@ async fn main() -> Result<()> {
 
     info!("hello, world!");
 
+    debug!("reading config file");
+    let config = String::from_utf8(tokio::fs::read("config.yml").await.suggestion(
+        "Create a `config.yml` file and fill it out. Look at `config.example.yml` for reference.",
+    )?)?;
+    let config: Arc<Config> = Arc::new(serde_yaml::from_str(&config)?);
+
     let broadcaster = Arc::new(Mutex::new(Broadcaster::init()));
 
-    let telegram = Arc::new(telegram::TelegramBridge::init(broadcaster.clone()));
+    let telegram = Arc::new(telegram::TelegramBridge::init(
+        broadcaster.clone(),
+        config.clone(),
+    ));
     let discord_receiver = Arc::new(discord::DiscordBroadcastReceiver);
 
     {
@@ -39,7 +50,10 @@ async fn main() -> Result<()> {
         broadcaster_locked.add_receiver(discord_receiver);
     }
 
-    tokio::join!(telegram.start(), discord::start(broadcaster));
+    tokio::join!(
+        telegram.start(),
+        discord::start(broadcaster, config.clone())
+    );
 
     Ok(())
 }

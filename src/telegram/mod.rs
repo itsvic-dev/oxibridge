@@ -1,11 +1,13 @@
-use std::{env, sync::Arc};
-
-use color_eyre::eyre::Context;
+use std::sync::Arc;
 use teloxide::prelude::*;
 use tokio::sync::Mutex;
 use tracing::*;
 
-use crate::broadcast::{Broadcaster, Source};
+use crate::{
+    broadcast::{Broadcaster, Source},
+    config::GroupConfig,
+    Config,
+};
 
 mod broadcast;
 mod entities;
@@ -14,35 +16,26 @@ use self::parsers::*;
 
 pub struct TelegramBridge {
     pub bot: Bot,
-    pub chat_id: i64,
 
     broadcaster: Arc<Mutex<Broadcaster>>,
+    config: Arc<Config>,
 }
 
 impl TelegramBridge {
-    pub fn init(broadcaster: Arc<Mutex<Broadcaster>>) -> TelegramBridge {
-        info!("setting up telegram bot");
-
-        let bot = Bot::from_env();
-        let chat_id = env::var("TELEGRAM_CHAT_ID")
-            .context(
-                "Set the TELEGRAM_CHAT_ID environment variable to a chat ID you want to bridge.",
-            )
-            .expect("Could not get chat ID")
-            .parse::<i64>()
-            .expect("Chat ID must be an i64");
+    pub fn init(broadcaster: Arc<Mutex<Broadcaster>>, config: Arc<Config>) -> TelegramBridge {
+        let bot = Bot::new(&config.shared.telegram_token);
 
         TelegramBridge {
             bot,
-            chat_id,
             broadcaster,
+            config,
         }
     }
 
     pub async fn start(&self) {
         let handler = dptree::entry().branch(Update::filter_message().endpoint(message_handle));
         Dispatcher::builder(self.bot.clone(), handler)
-            .dependencies(dptree::deps![self.chat_id, self.broadcaster.clone()])
+            .dependencies(dptree::deps![self.config.clone(), self.broadcaster.clone()])
             .build()
             .dispatch()
             .await;
@@ -52,12 +45,21 @@ impl TelegramBridge {
 async fn message_handle(
     bot: Bot,
     message: Message,
-    chat_id: i64,
+    config: Arc<Config>,
     broadcaster: Arc<Mutex<Broadcaster>>,
 ) -> color_eyre::Result<()> {
-    if message.chat.id.0 != chat_id {
+    // find the respective group
+    let group: Vec<GroupConfig> = config
+        .groups
+        .clone()
+        .into_iter()
+        .filter(|g| g.telegram_chat == message.chat.id.0)
+        .collect();
+
+    if group.is_empty() {
         return Ok(());
     }
+    let group = group.first().unwrap();
 
     let core_message = to_core_message(bot, message).await?;
     debug!(?core_message, "parsed core message");
@@ -65,7 +67,7 @@ async fn message_handle(
     broadcaster
         .lock()
         .await
-        .broadcast(&core_message, Source::Telegram)
+        .broadcast(group, &core_message, Source::Telegram)
         .await?;
 
     Ok(())

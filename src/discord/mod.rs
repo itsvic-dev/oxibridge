@@ -1,7 +1,10 @@
-use std::{env, sync::Arc};
+use std::sync::Arc;
 
-use crate::broadcast::{Broadcaster, Source};
-use color_eyre::eyre::Context;
+use crate::{
+    broadcast::{Broadcaster, Source},
+    config::GroupConfig,
+    Config,
+};
 use parsers::to_core_message;
 use serenity::{async_trait, model::channel::Message, prelude::*};
 use tracing::*;
@@ -12,19 +15,29 @@ pub use broadcast::DiscordBroadcastReceiver;
 
 struct Handler {
     pub broadcaster: Arc<Mutex<Broadcaster>>,
-    pub channel_id: u64,
+    pub config: Arc<Config>,
 }
 
 #[async_trait]
 impl EventHandler for Handler {
-    async fn message(&self, _ctx: serenity::prelude::Context, msg: Message) {
-        if msg.channel_id.get() != self.channel_id {
-            return;
-        }
-
+    async fn message(&self, _ctx: Context, msg: Message) {
         if msg.author.bot || msg.author.system {
             return;
         }
+
+        // find the respective group
+        let group: Vec<GroupConfig> = self
+            .config
+            .groups
+            .clone()
+            .into_iter()
+            .filter(|g| g.discord_channel == msg.channel_id.get())
+            .collect();
+
+        if group.is_empty() {
+            return;
+        }
+        let group = group.first().unwrap();
 
         let core_msg = to_core_message(&msg)
             .await
@@ -33,31 +46,21 @@ impl EventHandler for Handler {
         self.broadcaster
             .lock()
             .await
-            .broadcast(&core_msg, Source::Discord)
+            .broadcast(group, &core_msg, Source::Discord)
             .await
             .expect("failed to broadcast message");
     }
 }
 
 #[instrument(skip(broadcaster))]
-pub async fn start(broadcaster: Arc<Mutex<Broadcaster>>) {
-    let token = env::var("DISCORD_TOKEN")
-        .context("Set the DISCORD_TOKEN environment variable to your bot's Discord token.")
-        .expect("Could not get Discord bot token");
-
-    let channel_id = env::var("DISCORD_CHANNEL_ID")
-        .context("Set the DISCORD_CHANNEL_ID environment variable to the desired channel.")
-        .expect("Could not get Discord channel ID")
-        .parse::<u64>()
-        .expect("Channel ID is not a u64");
-
+pub async fn start(broadcaster: Arc<Mutex<Broadcaster>>, config: Arc<Config>) {
     let intents = GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
     let handler = Handler {
         broadcaster,
-        channel_id,
+        config: config.clone(),
     };
 
-    let mut client = Client::builder(&token, intents)
+    let mut client = Client::builder(&config.shared.discord_token, intents)
         .event_handler(handler)
         .await
         .expect("Error creating client");

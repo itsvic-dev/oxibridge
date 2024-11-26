@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::core::Message;
+use crate::{config::GroupConfig, core::Message};
 use color_eyre::Result;
 use serenity::async_trait;
 
@@ -23,10 +23,15 @@ impl Broadcaster {
         self.sources.push(receiver);
     }
 
-    pub async fn broadcast(&self, message: &Message, source: Source) -> Result<()> {
+    pub async fn broadcast(
+        &self,
+        group: &GroupConfig,
+        message: &Message,
+        source: Source,
+    ) -> Result<()> {
         for receiver in &self.sources {
             if receiver.get_receiver_source() != source {
-                receiver.receive(message).await?;
+                receiver.receive(group, message).await?;
             }
         }
 
@@ -36,6 +41,6 @@ impl Broadcaster {
 
 #[async_trait]
 pub trait BroadcastReceiver: Send + Sync {
-    async fn receive(&self, message: &Message) -> Result<()>;
+    async fn receive(&self, group: &GroupConfig, message: &Message) -> Result<()>;
     fn get_receiver_source(&self) -> Source;
 }

@@ -1,10 +1,9 @@
-use std::env;
-
 use crate::{
     broadcast::{BroadcastReceiver, Source},
+    config::GroupConfig,
     core,
 };
-use color_eyre::eyre::{Context, Result};
+use color_eyre::Result;
 use serenity::{
     all::{CreateAttachment, ExecuteWebhook, Http, Webhook},
     async_trait,
@@ -14,12 +13,10 @@ pub struct DiscordBroadcastReceiver;
 
 #[async_trait]
 impl BroadcastReceiver for DiscordBroadcastReceiver {
-    async fn receive(&self, message: &core::Message) -> Result<()> {
+    async fn receive(&self, group: &GroupConfig, message: &core::Message) -> Result<()> {
         // might be useful to move to an init function
         let http = Http::new("");
-        let webhook_url =
-            env::var("DISCORD_WEBHOOK").context("Set the DISCORD_WEBHOOK environment variable.")?;
-        let webhook = Webhook::from_url(&http, &webhook_url).await?;
+        let webhook = Webhook::from_url(&http, &group.discord_webhook).await?;
 
         let builder = ExecuteWebhook::new()
             .content(&message.content)

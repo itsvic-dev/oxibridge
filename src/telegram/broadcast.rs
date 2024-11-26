@@ -1,5 +1,6 @@
 use crate::{
     broadcast::{BroadcastReceiver, Source},
+    config::GroupConfig,
     core,
 };
 use color_eyre::eyre::Result;
@@ -14,7 +15,7 @@ use super::{entities::to_string_with_entities, TelegramBridge};
 
 #[async_trait]
 impl BroadcastReceiver for TelegramBridge {
-    async fn receive(&self, message: &core::Message) -> Result<()> {
+    async fn receive(&self, group: &GroupConfig, message: &core::Message) -> Result<()> {
         let text = format!("**{}**\n{}", &message.author.full_name(), &message.content);
 
         let parsed = to_string_with_entities(&text);
@@ -24,7 +25,7 @@ impl BroadcastReceiver for TelegramBridge {
         } else {
             self.bot
                 .send_message(
-                    Recipient::Id(ChatId(self.chat_id)),
+                    Recipient::Id(ChatId(group.telegram_chat)),
                     String::from_utf16_lossy(&parsed.0),
                 )
                 .entities(parsed.1)

@@ -1,0 +1,14 @@
+# This is the configuration file for Oxibridge.
+# As of right now, all fields are required.
+# This may change if I ever add more platforms in the future.
+
+# This configuration is shared between different platforms.
+shared:
+  discord_token: "PLACEHOLDER"
+  telegram_token: "PLACEHOLDER"
+
+# You can define multiple groups here to bridge multiple channels.
+groups:
+  - telegram_chat: -1001626556530
+    discord_channel: 984518258013118508
+    discord_webhook: "https://discord.com/api/webhooks/1310675671584079912/N5Kv0nGYmJnxtbGFpFc9TtK1Apb4qspWU2WPApKk3K31YV4_EtgyjI3mpBBczbiUAvUS"
