@@ -17,6 +17,7 @@ pub async fn to_core_message(bot: Bot, m: Message) -> color_eyre::Result<core::M
     let (content, attachments) = match &m.kind {
         MessageKind::Common(common) => match &common.media_kind {
             MediaKind::Text(text) => (text.text.to_owned(), vec![]),
+
             MediaKind::Photo(photo) => {
                 let attachment = photo_to_core_file(bot.clone(), &photo.photo).await?;
                 (
@@ -27,6 +28,38 @@ pub async fn to_core_message(bot: Bot, m: Message) -> color_eyre::Result<core::M
                     }],
                 )
             }
+
+            MediaKind::Sticker(sticker) => {
+                let sticker = &sticker.sticker;
+                match (sticker.flags.is_animated, sticker.flags.is_video) {
+                    (false, false) => {
+                        // raster sticker
+                        let file = bot.get_file(&sticker.file.id).await?;
+                        let attachment = to_core_file(bot.clone(), &file).await?;
+                        let set_name = match sticker.set_name.clone() {
+                            Some(slug) => {
+                                let set = bot.get_sticker_set(&slug).await?;
+                                // technically discord sugar, but its fine
+                                format!("[{}](<https://t.me/addstickers/{}>)", &set.title, &slug)
+                            }
+                            None => "Unknown set".to_owned(),
+                        };
+                        (
+                            format!(
+                                "_{} sticker from {}_",
+                                &sticker.emoji.clone().unwrap_or("?".to_owned()),
+                                &set_name,
+                            ),
+                            vec![core::Attachment {
+                                file: attachment,
+                                spoilered: false,
+                            }],
+                        )
+                    }
+                    _ => ("[Animated or video sticker]".to_owned(), vec![]),
+                }
+            }
+
             _ => ("[Unknown media kind]".to_owned(), vec![]),
         },
         _ => ("[Unknown message kind]".to_owned(), vec![]),
