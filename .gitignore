@@ -1,4 +1,5 @@
 /target
 .direnv
 .envrc
+.env
 result
