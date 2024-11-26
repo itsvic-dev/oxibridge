@@ -15,12 +15,13 @@ pub struct Broadcaster {
 }
 
 impl Broadcaster {
-    pub fn init() -> Broadcaster {
-        Broadcaster { sources: vec![] }
+    pub fn init() -> Self {
+        Self { sources: vec![] }
     }
 
-    pub fn add_receiver(&mut self, receiver: Arc<dyn BroadcastReceiver>) {
+    pub fn add_receiver(&mut self, receiver: Arc<dyn BroadcastReceiver>) -> &mut Self {
         self.sources.push(receiver);
+        self
     }
 
     pub async fn broadcast(

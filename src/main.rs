@@ -45,9 +45,11 @@ async fn main() -> Result<()> {
     let discord_receiver = Arc::new(discord::DiscordBroadcastReceiver);
 
     {
-        let mut broadcaster_locked = broadcaster.lock().await;
-        broadcaster_locked.add_receiver(telegram.clone());
-        broadcaster_locked.add_receiver(discord_receiver);
+        broadcaster
+            .lock()
+            .await
+            .add_receiver(telegram.clone())
+            .add_receiver(discord_receiver);
     }
 
     tokio::join!(
