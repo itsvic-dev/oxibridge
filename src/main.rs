@@ -1,4 +1,8 @@
+use std::sync::Arc;
+
+use broadcast::Broadcaster;
 use color_eyre::Result;
+use tokio::sync::Mutex;
 use tracing::*;
 use tracing_subscriber::{
     fmt::writer::MakeWriterExt, layer::SubscriberExt, util::SubscriberInitExt,
@@ -24,7 +28,18 @@ async fn main() -> Result<()> {
 
     info!("hello, world!");
 
-    tokio::join!(telegram::start(), discord::start());
+    let broadcaster = Arc::new(Mutex::new(Broadcaster::init()));
+
+    let telegram = Arc::new(telegram::TelegramBridge::init(broadcaster.clone()));
+    let discord_receiver = Arc::new(discord::DiscordBroadcastReceiver);
+
+    {
+        let mut broadcaster_locked = broadcaster.lock().await;
+        broadcaster_locked.add_receiver(telegram.clone());
+        broadcaster_locked.add_receiver(discord_receiver);
+    }
+
+    tokio::join!(telegram.start(), discord::start(broadcaster));
 
     Ok(())
 }

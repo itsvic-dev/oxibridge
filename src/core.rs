@@ -4,9 +4,24 @@ use tracing::debug;
 
 #[derive(Debug)]
 pub struct Author {
-    pub display_name: String,
+    pub display_name: Option<String>,
     pub username: String,
     pub avatar: Option<File>,
+}
+
+impl Author {
+    pub fn full_name(&self) -> String {
+        if let Some(display_name) = &self.display_name {
+            let full_name = format!("{} ({})", display_name, self.username);
+            if full_name.len() > 32 {
+                display_name.clone()
+            } else {
+                full_name
+            }
+        } else {
+            self.username.clone()
+        }
+    }
 }
 
 #[derive(Debug)]
