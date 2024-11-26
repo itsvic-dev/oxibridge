@@ -4,26 +4,27 @@ use broadcast::Broadcaster;
 use color_eyre::{eyre::Result, Section};
 use tokio::sync::Mutex;
 use tracing::*;
-use tracing_subscriber::{
-    fmt::writer::MakeWriterExt, layer::SubscriberExt, util::SubscriberInitExt,
-};
+use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 
 mod broadcast;
 mod config;
 mod core;
 mod discord;
+mod storage;
 mod telegram;
 pub use config::Config;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::fmt::layer()
-                .without_time()
-                .with_writer(std::io::stdout.with_max_level(Level::DEBUG)),
-        )
-        .with(tracing_error::ErrorLayer::default())
+    let filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
+        .from_env()?
+        .add_directive("oxibridge=debug".parse()?);
+
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .without_time()
+        .compact()
         .init();
 
     color_eyre::install()?;
@@ -36,13 +37,19 @@ async fn main() -> Result<()> {
     )?)?;
     let config: Arc<Config> = Arc::new(serde_yaml::from_str(&config)?);
 
+    // r2 storage
+    let storage = match &config.shared.r2 {
+        Some(config) => Some(Arc::new(Mutex::new(storage::R2Storage::new(config)?))),
+        None => None,
+    };
+
     let broadcaster = Arc::new(Mutex::new(Broadcaster::init()));
 
     let telegram = Arc::new(telegram::TelegramBridge::init(
         broadcaster.clone(),
         config.clone(),
     ));
-    let discord_receiver = Arc::new(discord::DiscordBroadcastReceiver);
+    let discord_receiver = Arc::new(discord::DiscordBroadcastReceiver { storage });
 
     {
         broadcaster

@@ -1,15 +1,21 @@
+use std::sync::Arc;
+
 use crate::{
     broadcast::{BroadcastReceiver, Source},
     config::GroupConfig,
     core,
+    storage::R2Storage,
 };
 use color_eyre::Result;
 use serenity::{
     all::{CreateAttachment, ExecuteWebhook, Http, Webhook},
     async_trait,
 };
+use tokio::sync::Mutex;
 
-pub struct DiscordBroadcastReceiver;
+pub struct DiscordBroadcastReceiver {
+    pub storage: Option<Arc<Mutex<R2Storage>>>,
+}
 
 #[async_trait]
 impl BroadcastReceiver for DiscordBroadcastReceiver {
@@ -21,6 +27,14 @@ impl BroadcastReceiver for DiscordBroadcastReceiver {
         let builder = ExecuteWebhook::new()
             .content(&message.content)
             .username(message.author.full_name());
+
+        let builder = match &self.storage {
+            Some(storage) => match &message.author.avatar {
+                Some(avatar) => builder.avatar_url(storage.lock().await.get_url(avatar).await?),
+                None => builder,
+            },
+            None => builder,
+        };
 
         let mut attachments: Vec<CreateAttachment> = vec![];
         for file in &message.attachments {
@@ -39,7 +53,6 @@ impl BroadcastReceiver for DiscordBroadcastReceiver {
         let builder = builder.add_files(attachments);
 
         webhook.execute(&http, false, builder).await?;
-
         Ok(())
     }
 

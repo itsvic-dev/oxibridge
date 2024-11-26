@@ -22,7 +22,9 @@ pub struct TelegramBridge {
 }
 
 impl TelegramBridge {
+    #[instrument(skip_all)]
     pub fn init(broadcaster: Arc<Mutex<Broadcaster>>, config: Arc<Config>) -> TelegramBridge {
+        debug!("Creating Telegram bot");
         let bot = Bot::new(&config.shared.telegram_token);
 
         TelegramBridge {

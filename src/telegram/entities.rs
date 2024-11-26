@@ -83,7 +83,6 @@ fn node_to_entities(node: &Node) -> StringWithEntities {
 
 pub fn to_string_with_entities(value: &str) -> StringWithEntities {
     let node = markdown::to_mdast(value, &ParseOptions::default()).unwrap();
-    println!("node={node:#?}");
     node_to_entities(&node)
 }
 

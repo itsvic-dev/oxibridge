@@ -1,11 +1,19 @@
 # This is the configuration file for Oxibridge.
-# As of right now, all fields are required.
+# As of right now, all fields are required unless noted otherwise.
 # This may change if I ever add more platforms in the future.
 
 # This configuration is shared between different platforms.
 shared:
   discord_token: "PLACEHOLDER"
   telegram_token: "PLACEHOLDER"
+
+  # Optional. Used for avatars on Discord
+  r2:
+    bucket_name: "oxibridge-avatars"
+    account_id: ""
+    # Get these from https://dash.cloudflare.com/?to=/:account/r2/api-tokens
+    access_key: ""
+    secret_key: ""
 
 # You can define multiple groups here to bridge multiple channels.
 groups:

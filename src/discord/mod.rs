@@ -52,7 +52,7 @@ impl EventHandler for Handler {
     }
 }
 
-#[instrument(skip(broadcaster))]
+#[instrument(skip(broadcaster, config))]
 pub async fn start(broadcaster: Arc<Mutex<Broadcaster>>, config: Arc<Config>) {
     let intents = GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
     let handler = Handler {
@@ -60,6 +60,7 @@ pub async fn start(broadcaster: Arc<Mutex<Broadcaster>>, config: Arc<Config>) {
         config: config.clone(),
     };
 
+    debug!("Creating Discord bot");
     let mut client = Client::builder(&config.shared.discord_token, intents)
         .event_handler(handler)
         .await

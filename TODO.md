@@ -2,7 +2,7 @@ features that need to be worked on:
 
 - general
 
-  - [ ] config file
+  - [x] config file
 
 - discord
 
@@ -10,7 +10,7 @@ features that need to be worked on:
   - [x] attachments
     - [x] broadcast receiver
     - [ ] broadcaster
-  - [ ] webhook avatars
+  - [x] webhook avatars
 
 - telegram
 
