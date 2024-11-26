@@ -23,7 +23,10 @@ impl BroadcastReceiver for TelegramBridge {
             todo!();
         } else {
             self.bot
-                .send_message(Recipient::Id(ChatId(self.chat_id)), parsed.0)
+                .send_message(
+                    Recipient::Id(ChatId(self.chat_id)),
+                    String::from_utf16_lossy(&parsed.0),
+                )
                 .entities(parsed.1)
                 .await?;
         }

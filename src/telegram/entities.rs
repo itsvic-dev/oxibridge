@@ -2,15 +2,14 @@ use markdown::{mdast::Node, ParseOptions};
 use teloxide::types::MessageEntity;
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct StringWithEntities(pub String, pub Vec<MessageEntity>);
+pub struct StringWithEntities(pub Vec<u16>, pub Vec<MessageEntity>);
 
 impl StringWithEntities {
     fn new() -> Self {
-        Self(String::new(), vec![])
+        Self(Vec::new(), vec![])
     }
 
     fn join(&mut self, other: &Self) {
-        // FIXME: this will break if we have any unicode characters because i'm lazy rn
         let offset_entities = other
             .1
             .iter()
@@ -21,7 +20,7 @@ impl StringWithEntities {
             })
             .collect::<Vec<MessageEntity>>();
 
-        self.0.push_str(&other.0);
+        self.0.extend(other.0.iter());
         self.1.extend(offset_entities);
     }
 
@@ -45,7 +44,7 @@ fn node_to_entities(node: &Node) -> StringWithEntities {
         Node::Root(root) => nodes_to_entities(root.children.clone()),
         Node::Paragraph(root) => nodes_to_entities(root.children.clone()),
 
-        Node::Text(text) => StringWithEntities(text.value.clone(), vec![]),
+        Node::Text(text) => StringWithEntities(text.value.encode_utf16().collect(), vec![]),
 
         Node::Strong(strong) => {
             let string = nodes_to_entities(strong.children.clone());
@@ -66,16 +65,19 @@ fn node_to_entities(node: &Node) -> StringWithEntities {
         }
 
         Node::InlineCode(node) => StringWithEntities(
-            node.value.clone(),
+            node.value.encode_utf16().collect(),
             vec![MessageEntity::code(0, node.value.len())],
         ),
 
         Node::Code(node) => StringWithEntities(
-            node.value.clone(),
+            node.value.encode_utf16().collect(),
             vec![MessageEntity::pre(node.lang.clone(), 0, node.value.len())],
         ),
 
-        _ => StringWithEntities(format!("unknown node {node:?}"), vec![]),
+        _ => StringWithEntities(
+            format!("unknown node {node:?}").encode_utf16().collect(),
+            vec![],
+        ),
     }
 }
 
@@ -96,7 +98,7 @@ mod tests {
         assert_eq!(
             to_string_with_entities(string),
             StringWithEntities(
-                "hello, world!".to_owned(),
+                "hello, world!".encode_utf16().collect(),
                 vec![MessageEntity::italic(7, 5), MessageEntity::bold(7, 5)]
             )
         );
@@ -108,7 +110,7 @@ mod tests {
 
         assert_eq!(
             to_string_with_entities(string),
-            StringWithEntities("hello\nworld".to_owned(), vec![])
+            StringWithEntities("hello\nworld".encode_utf16().collect(), vec![])
         );
     }
 
@@ -121,7 +123,7 @@ println!(\"hello, world!\");
         assert_eq!(
             to_string_with_entities(string),
             StringWithEntities(
-                "println!(\"hello, world!\");".to_owned(),
+                "println!(\"hello, world!\");".encode_utf16().collect(),
                 vec![MessageEntity::pre(Some("rs".to_owned()), 0, 26)]
             )
         );
