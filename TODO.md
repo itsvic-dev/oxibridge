@@ -11,6 +11,9 @@ features that need to be worked on:
     - [x] broadcast receiver
     - [ ] broadcaster
   - [x] webhook avatars
+  - [ ] message edits
+  - [ ] message deletes
+  - [ ] reactions (edits)
 
 - telegram
 
@@ -20,3 +23,6 @@ features that need to be worked on:
   - [x] attachments
     - [ ] broadcast receiver
     - [x] broadcaster
+  - [ ] message edits
+  - [ ] message deletes
+  - [ ] reactions (edits)
