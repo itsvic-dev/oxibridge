@@ -8,7 +8,10 @@
   outputs =
     { self, nixpkgs }:
     let
-      supportedSystems = [ "x86_64-linux" ];
+      supportedSystems = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
       nixpkgsFor = forAllSystems (system: import nixpkgs { inherit system; });
     in
@@ -30,24 +33,6 @@
             nativeBuildInputs = with pkgs; [ pkg-config ];
             buildInputs = with pkgs; [ openssl.dev ];
           };
-        }
-      );
-
-      devShells = forAllSystems (
-        system:
-        let
-          pkgs = nixpkgsFor.${system};
-        in
-        {
-          default =
-            with pkgs;
-            mkShell {
-              packages = [
-                pkg-config
-                openssl.dev
-                nodemon
-              ];
-            };
         }
       );
     };
