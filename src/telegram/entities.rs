@@ -36,7 +36,7 @@ impl StringWithEntities {
 }
 
 fn nodes_to_entities(nodes: Vec<Node>) -> StringWithEntities {
-    StringWithEntities::join_strings(nodes.iter().map(|node| node_to_entities(node)).collect())
+    StringWithEntities::join_strings(nodes.iter().map(node_to_entities).collect())
 }
 
 fn node_to_entities(node: &Node) -> StringWithEntities {
@@ -50,7 +50,7 @@ fn node_to_entities(node: &Node) -> StringWithEntities {
             let string = nodes_to_entities(strong.children.clone());
 
             let entity = MessageEntity::bold(0, string.0.len());
-            let entities = [entity].into_iter().chain(string.1.into_iter()).collect();
+            let entities = [entity].into_iter().chain(string.1).collect();
 
             StringWithEntities(string.0.clone(), entities)
         }
@@ -59,7 +59,7 @@ fn node_to_entities(node: &Node) -> StringWithEntities {
             let string = nodes_to_entities(em.children.clone());
 
             let entity = MessageEntity::italic(0, string.0.len());
-            let entities = [entity].into_iter().chain(string.1.into_iter()).collect();
+            let entities = [entity].into_iter().chain(string.1).collect();
 
             StringWithEntities(string.0.clone(), entities)
         }
