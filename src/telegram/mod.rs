@@ -8,6 +8,7 @@ use tracing::*;
 use crate::broadcast::{Broadcaster, Source};
 
 mod broadcast;
+mod entities;
 mod parsers;
 use self::parsers::*;
 
