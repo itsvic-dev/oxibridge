@@ -7,7 +7,9 @@ features that need to be worked on:
 - discord
 
   - [x] messages
-  - [ ] attachments
+  - [x] attachments
+    - [x] broadcast receiver
+    - [ ] broadcaster
   - [ ] webhook avatars
 
 - telegram
@@ -16,3 +18,5 @@ features that need to be worked on:
     - [x] MD to entities
     - [ ] entities to MD (for broadcasting)
   - [x] attachments
+    - [ ] broadcast receiver
+    - [x] broadcaster
