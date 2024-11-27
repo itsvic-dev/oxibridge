@@ -71,6 +71,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-tempfile"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "acb90d9834a8015109afc79f1f548223a0614edcbab62fb35b62d4b707e975e7"
+dependencies = [
+ "tokio",
+]
+
+[[package]]
 name = "async-trait"
 version = "0.1.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1422,6 +1431,7 @@ checksum = "c1b04fb49957986fdce4d6ee7a65027d55d4b6d2265e5848bbb507b58ccfdb6f"
 name = "oxibridge"
 version = "0.1.0"
 dependencies = [
+ "async-tempfile",
  "color-eyre",
  "markdown",
  "rust-s3",

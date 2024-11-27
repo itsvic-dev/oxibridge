@@ -1,12 +1,10 @@
-use color_eyre::Result;
-use std::{env::temp_dir, fs, path::PathBuf};
-use tracing::{debug, error};
+use async_tempfile::TempFile;
 
 #[derive(Debug)]
 pub struct Author {
     pub display_name: Option<String>,
     pub username: String,
-    pub avatar: Option<File>,
+    pub avatar: Option<TempFile>,
 }
 
 impl Author {
@@ -31,34 +29,8 @@ pub struct Message {
     pub attachments: Vec<Attachment>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Attachment {
-    pub file: File,
+    pub file: TempFile,
     pub spoilered: bool,
-}
-
-#[derive(Debug, Clone)]
-pub struct File {
-    pub name: String,
-    pub path: PathBuf,
-}
-
-impl Drop for File {
-    fn drop(&mut self) {
-        debug!("removing file {:?}", &self.path);
-        // this shouldn't be fatal
-        if let Err(e) = fs::remove_file(&self.path) {
-            error!("failed to remove file: {:?}", e);
-        }
-    }
-}
-
-pub fn get_tmp_dir() -> Result<PathBuf> {
-    let path = temp_dir().join("oxibridge");
-
-    if !fs::exists(&path)? {
-        fs::create_dir_all(&path)?;
-    }
-
-    Ok(path)
 }

@@ -1,12 +1,12 @@
 use std::path::Path;
 
 use crate::core;
+use async_tempfile::TempFile;
 use teloxide::{
     net::Download,
     prelude::*,
     types::{self, MediaKind, MessageKind, MessageOrigin, PhotoSize},
 };
-use tokio::fs;
 use tracing::*;
 
 #[instrument(skip(bot, m))]
@@ -154,7 +154,7 @@ async fn to_core_author(bot: Bot, author: &types::User) -> color_eyre::Result<co
     })
 }
 
-pub async fn photo_to_core_file(bot: Bot, photo: &[PhotoSize]) -> color_eyre::Result<core::File> {
+pub async fn photo_to_core_file(bot: Bot, photo: &[PhotoSize]) -> color_eyre::Result<TempFile> {
     if let Some(photo) = photo.last() {
         let file = bot.get_file(&photo.file.id).await?;
         to_core_file(bot, &file).await
@@ -164,20 +164,21 @@ pub async fn photo_to_core_file(bot: Bot, photo: &[PhotoSize]) -> color_eyre::Re
 }
 
 #[instrument(skip(bot))]
-pub async fn to_core_file(
-    bot: Bot,
-    file: &teloxide::types::File,
-) -> color_eyre::Result<core::File> {
+pub async fn to_core_file(bot: Bot, file: &teloxide::types::File) -> color_eyre::Result<TempFile> {
     let extension = Path::new(&file.path)
         .extension()
         .and_then(|ext| ext.to_str())
         .ok_or_else(|| color_eyre::eyre::eyre!("Failed to get file extension"))?;
-    let path = core::get_tmp_dir()?.join(format!("{}.{}", &file.unique_id, extension));
-    let mut dst = fs::File::create(&path).await?;
-    bot.download_file(&file.path, &mut dst).await?;
+    let mut tmpfile =
+        async_tempfile::TempFile::new_with_name(&format!("{}.{}", &file.unique_id, extension))
+            .await?;
+    // let path = core::get_tmp_dir()?.join(format!("{}.{}", &file.unique_id, extension));
+    // let mut dst = fs::File::create(&path.file_path()).await?;
+    bot.download_file(&file.path, &mut tmpfile).await?;
 
-    Ok(core::File {
-        name: file.path.replace("/", "_"),
-        path,
-    })
+    // Ok(core::File {
+    //     name: file.path.replace('/', "_"),
+    //     path: path.into_path(),
+    // })
+    Ok(tmpfile)
 }

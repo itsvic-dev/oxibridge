@@ -3,11 +3,13 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use async_tempfile::TempFile;
 use color_eyre::Result;
 use s3::{creds::Credentials, Bucket, Region};
+use tokio::io::AsyncReadExt;
 use tracing::{debug, instrument};
 
-use crate::{config::R2Config, core::File};
+use crate::config::R2Config;
 
 #[derive(Debug)]
 pub struct R2Storage {
@@ -51,16 +53,21 @@ impl R2Storage {
     ///
     /// The URL is a presigned GET URL which will expire after 1 day.
     #[instrument(skip_all)]
-    pub async fn get_url(&mut self, file: &File) -> Result<String> {
+    pub async fn get_url(&mut self, file: &TempFile) -> Result<String> {
         // read file
-        let content = tokio::fs::read(&file.path).await?;
+        let mut content = Vec::new();
+        // Ensure `file` is declared as mutable
+        let mut file = file.open_ro().await?;
+
+        file.read_to_end(&mut content).await?;
+
         let hash = sha256::digest(&content);
 
         // check if file is in cache. subtracting 10s from expiry time to account for possible latency between the cache hit and Discord pulling it
         if let Some(cache_item) = self.cache.get(&hash) {
             if cache_item.expiry_time - Duration::from_secs(10) >= SystemTime::now() {
-            debug!("cache hit for file {file:?}");
-            return Ok(cache_item.url.clone());
+                debug!("cache hit for file {file:?}");
+                return Ok(cache_item.url.clone());
             }
         }
 

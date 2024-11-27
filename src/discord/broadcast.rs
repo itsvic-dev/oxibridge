@@ -23,7 +23,9 @@ impl BroadcastReceiver for DiscordBridge {
 
         let builder = match &self.storage {
             Some(storage) => match &message.author.avatar {
-                Some(avatar) => builder.avatar_url(storage.lock().await.get_url(avatar).await?),
+                Some(avatar) => {
+                    builder.avatar_url(storage.lock().await.get_url(avatar).await?)
+                }
                 None => builder,
             },
             None => builder,
@@ -31,11 +33,20 @@ impl BroadcastReceiver for DiscordBridge {
 
         let mut attachments: Vec<CreateAttachment> = vec![];
         for file in &message.attachments {
-            let attachment_old = CreateAttachment::path(&file.file.path).await?;
+            let attachment_old = CreateAttachment::path(&file.file.file_path()).await?;
             let attachment = if file.spoilered {
                 CreateAttachment::bytes(
                     attachment_old.data,
-                    format!("SPOILER_{}", &file.file.name).to_owned(),
+                    format!(
+                        "SPOILER_{}",
+                        &file
+                            .file
+                            .file_path()
+                            .file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                    )
+                    .to_owned(),
                 )
             } else {
                 attachment_old
