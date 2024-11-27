@@ -4,7 +4,7 @@ use crate::core;
 use teloxide::{
     net::Download,
     prelude::*,
-    types::{self, MediaKind, MessageKind, PhotoSize},
+    types::{self, MediaKind, MessageKind, MessageOrigin, PhotoSize},
 };
 use tokio::fs;
 use tracing::*;
@@ -25,6 +25,30 @@ pub async fn to_core_message(bot: Bot, m: Message) -> color_eyre::Result<core::M
                     vec![core::Attachment {
                         file: attachment,
                         spoilered: photo.has_media_spoiler,
+                    }],
+                )
+            }
+
+            MediaKind::Video(video) => {
+                let file = bot.get_file(&video.video.file.id).await?;
+                let attachment = to_core_file(bot.clone(), &file).await?;
+                (
+                    video.caption.clone().unwrap_or("".to_owned()),
+                    vec![core::Attachment {
+                        file: attachment,
+                        spoilered: video.has_media_spoiler,
+                    }],
+                )
+            }
+
+            MediaKind::Animation(animation) => {
+                let file = bot.get_file(&animation.animation.file.id).await?;
+                let attachment = to_core_file(bot.clone(), &file).await?;
+                (
+                    animation.caption.clone().unwrap_or("".to_owned()),
+                    vec![core::Attachment {
+                        file: attachment,
+                        spoilered: animation.has_media_spoiler,
                     }],
                 )
             }
@@ -64,6 +88,41 @@ pub async fn to_core_message(bot: Bot, m: Message) -> color_eyre::Result<core::M
         },
         _ => ("[Unknown message kind]".to_owned(), vec![]),
     };
+
+    let forwarded_header = match m.forward_origin() {
+        Some(MessageOrigin::User {
+            date: _,
+            sender_user,
+        }) => {
+            format!("*Forwarded from {}*", &sender_user.full_name())
+        }
+
+        Some(MessageOrigin::HiddenUser {
+            date: _,
+            sender_user_name,
+        }) => format!("*Forwarded from {}*", &sender_user_name),
+
+        Some(MessageOrigin::Channel {
+            date: _,
+            chat,
+            message_id: _,
+            author_signature,
+        }) => match author_signature {
+            Some(signature) => format!(
+                "*Forwarded from {} ({})*",
+                chat.title().unwrap_or("an unknown channel"),
+                &signature
+            ),
+            None => format!(
+                "*Forwarded from {}*",
+                chat.title().unwrap_or("an unknown channel")
+            ),
+        },
+
+        _ => "".to_owned(),
+    };
+
+    let content = [forwarded_header, content].join("\n").trim().to_owned();
 
     Ok(core::Message {
         author: core_author,
