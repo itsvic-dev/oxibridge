@@ -1,26 +1,19 @@
-use std::sync::Arc;
-
 use crate::{
     broadcast::{BroadcastReceiver, Source},
     config::GroupConfig,
     core,
-    storage::R2Storage,
 };
 use color_eyre::Result;
 use serenity::{
     all::{CreateAttachment, ExecuteWebhook, Http, Webhook},
     async_trait,
 };
-use tokio::sync::Mutex;
 
-pub struct DiscordBroadcastReceiver {
-    pub storage: Option<Arc<Mutex<R2Storage>>>,
-}
+use super::DiscordBridge;
 
 #[async_trait]
-impl BroadcastReceiver for DiscordBroadcastReceiver {
+impl BroadcastReceiver for DiscordBridge {
     async fn receive(&self, group: &GroupConfig, message: &core::Message) -> Result<()> {
-        // might be useful to move to an init function
         let http = Http::new("");
         let webhook = Webhook::from_url(&http, &group.discord_webhook).await?;
 

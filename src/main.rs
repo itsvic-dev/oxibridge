@@ -49,20 +49,19 @@ async fn main() -> Result<()> {
         broadcaster.clone(),
         config.clone(),
     ));
-    let discord_receiver = Arc::new(discord::DiscordBroadcastReceiver { storage });
+    let discord = Arc::new(
+        discord::DiscordBridge::new(config.clone(), broadcaster.clone(), storage.clone()).await?,
+    );
 
     {
         broadcaster
             .lock()
             .await
             .add_receiver(telegram.clone())
-            .add_receiver(discord_receiver);
+            .add_receiver(discord.clone());
     }
 
-    tokio::join!(
-        telegram.start(),
-        discord::start(broadcaster, config.clone())
-    );
+    tokio::join!(telegram.start(), discord.start());
 
     Ok(())
 }
