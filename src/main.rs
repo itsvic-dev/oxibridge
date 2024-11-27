@@ -4,7 +4,7 @@ use broadcast::Broadcaster;
 use color_eyre::{eyre::Result, Section};
 use tokio::sync::Mutex;
 use tracing::*;
-use tracing_subscriber::{filter::LevelFilter, EnvFilter};
+use tracing_subscriber::{filter::LevelFilter, layer::SubscriberExt, EnvFilter, Layer};
 
 mod broadcast;
 mod config;
@@ -16,18 +16,22 @@ pub use config::Config;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    color_eyre::install()?;
+
     let filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::INFO.into())
         .from_env()?
         .add_directive("oxibridge=debug".parse()?);
 
-    tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .without_time()
-        .compact()
-        .init();
-
-    color_eyre::install()?;
+    let subscriber = tracing_subscriber::Registry::default()
+        .with(
+            tracing_subscriber::fmt::layer()
+                .without_time()
+                .compact()
+                .with_filter(filter),
+        )
+        .with(tracing_error::ErrorLayer::default());
+    tracing::subscriber::set_global_default(subscriber)?;
 
     info!("hello, world!");
 

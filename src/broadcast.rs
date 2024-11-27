@@ -11,6 +11,13 @@ pub enum Source {
     Telegram,
 }
 
+#[derive(Debug)]
+pub enum MessageEvent {
+    Create(Message),
+    Update(u64, String),
+    Delete(u64),
+}
+
 pub struct Broadcaster {
     sources: Vec<Arc<dyn BroadcastReceiver>>,
 }
@@ -29,12 +36,12 @@ impl Broadcaster {
     pub async fn broadcast(
         &self,
         group: &GroupConfig,
-        message: &Message,
+        event: &MessageEvent,
         source: Source,
     ) -> Result<()> {
         for receiver in &self.sources {
             if receiver.get_receiver_source() != source {
-                receiver.receive(group, message).await?;
+                receiver.receive(group, event).await?;
             }
         }
 
@@ -44,6 +51,6 @@ impl Broadcaster {
 
 #[async_trait]
 pub trait BroadcastReceiver: Send + Sync {
-    async fn receive(&self, group: &GroupConfig, message: &Message) -> Result<()>;
+    async fn receive(&self, group: &GroupConfig, event: &MessageEvent) -> Result<()>;
     fn get_receiver_source(&self) -> Source;
 }

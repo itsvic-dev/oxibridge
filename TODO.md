@@ -11,7 +11,7 @@ features that need to be worked on:
     - [x] broadcast receiver
     - [ ] broadcaster
   - [x] webhook avatars
-  - [ ] message edits
+  - [x] message edits
   - [ ] message deletes
   - [ ] reactions (edits)
 
@@ -23,6 +23,6 @@ features that need to be worked on:
   - [x] attachments
     - [ ] broadcast receiver
     - [x] broadcaster
-  - [ ] message edits
+  - [x] message edits
   - [ ] message deletes
   - [ ] reactions (edits)

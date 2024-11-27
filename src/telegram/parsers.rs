@@ -10,7 +10,7 @@ use teloxide::{
 use tracing::*;
 
 #[instrument(skip(bot, m))]
-pub async fn to_core_message(bot: Bot, m: Message) -> color_eyre::Result<core::Message> {
+pub async fn to_core_message(bot: Bot, m: &Message) -> color_eyre::Result<core::Message> {
     let tg_author = match m.from.as_ref() {
         Some(author) => author,
         None => return Err(color_eyre::eyre::eyre!("Message has no author")),

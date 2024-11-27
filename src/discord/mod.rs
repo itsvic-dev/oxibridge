@@ -1,17 +1,12 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
-use crate::{
-    broadcast::{Broadcaster, Source},
-    config::GroupConfig,
-    storage::R2Storage,
-    Config,
-};
+use crate::{broadcast::Broadcaster, storage::R2Storage, Config};
 use color_eyre::Result;
-use parsers::to_core_message;
-use serenity::{async_trait, model::channel::Message, prelude::*};
+use serenity::{all::MessageId, prelude::*};
 use tracing::*;
 
 mod broadcast;
+mod events;
 mod parsers;
 
 pub struct DiscordBridge {
@@ -19,6 +14,17 @@ pub struct DiscordBridge {
 
     /// The underlying Discord client. Will likely be locked after `start()`, so don't try to read it.
     client: Arc<Mutex<Client>>,
+
+    cache: Arc<Mutex<DscCache>>,
+}
+
+#[derive(Debug)]
+struct DscCache {
+    /// Cache of Discord IDs to core message IDs.
+    dsc_core_cache: HashMap<MessageId, u64>,
+
+    /// Cache of core message IDs to Discord IDs.
+    core_dsc_cache: HashMap<u64, MessageId>,
 }
 
 impl DiscordBridge {
@@ -32,9 +38,15 @@ impl DiscordBridge {
 
         let intents = GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
 
+        let cache = Arc::new(Mutex::new(DscCache {
+            dsc_core_cache: HashMap::new(),
+            core_dsc_cache: HashMap::new(),
+        }));
+
         let handler = BotEventHandler {
             config: config.clone(),
             broadcaster,
+            cache: cache.clone(),
         };
 
         let client = Arc::new(Mutex::new(
@@ -43,7 +55,11 @@ impl DiscordBridge {
                 .await?,
         ));
 
-        Ok(DiscordBridge { client, storage })
+        Ok(DiscordBridge {
+            client,
+            storage,
+            cache,
+        })
     }
 
     pub async fn start(&self) {
@@ -57,48 +73,8 @@ impl DiscordBridge {
 }
 
 struct BotEventHandler {
-    pub broadcaster: Arc<Mutex<Broadcaster>>,
-    pub config: Arc<Config>,
-}
+    broadcaster: Arc<Mutex<Broadcaster>>,
+    config: Arc<Config>,
 
-#[async_trait]
-impl EventHandler for BotEventHandler {
-    #[instrument(skip_all)]
-    async fn message(&self, _ctx: Context, msg: Message) {
-        if msg.author.bot || msg.author.system {
-            return;
-        }
-
-        // find the respective group
-        let group: Vec<GroupConfig> = self
-            .config
-            .groups
-            .clone()
-            .into_iter()
-            .filter(|g| g.discord_channel == msg.channel_id.get())
-            .collect();
-
-        let group = match group.first() {
-            Some(group) => group,
-            None => return,
-        };
-
-        let core_msg = match to_core_message(&msg).await {
-            Ok(core_msg) => core_msg,
-            Err(why) => {
-                error!(?why, "Failed to parse into core message");
-                return;
-            }
-        };
-
-        if let Err(why) = self
-            .broadcaster
-            .lock()
-            .await
-            .broadcast(group, &core_msg, Source::Discord)
-            .await
-        {
-            error!(?why, "Failed to broadcast message");
-        }
-    }
+    cache: Arc<Mutex<DscCache>>,
 }
