@@ -127,11 +127,7 @@ pub async fn to_core_message(bot: Bot, m: Message) -> color_eyre::Result<core::M
 
     let content = [forwarded_header, content].join("\n").trim().to_owned();
 
-    Ok(core::Message {
-        author: core_author,
-        content,
-        attachments,
-    })
+    Ok(core::Message::new(core_author, content, attachments).await)
 }
 
 #[instrument(skip(bot))]

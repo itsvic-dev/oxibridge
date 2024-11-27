@@ -1,4 +1,7 @@
+use std::sync::LazyLock;
+
 use async_tempfile::TempFile;
+use tokio::sync::Mutex;
 
 #[derive(Debug)]
 pub struct Author {
@@ -27,6 +30,24 @@ pub struct Message {
     pub author: Author,
     pub content: String,
     pub attachments: Vec<Attachment>,
+    pub id: u64,
+}
+
+static NEXT_ID: LazyLock<Mutex<u64>> = LazyLock::new(|| Mutex::new(0));
+
+impl Message {
+    pub async fn new(author: Author, content: String, attachments: Vec<Attachment>) -> Self {
+        let mut next_id = NEXT_ID.lock().await;
+        let id = *next_id;
+        *next_id += 1;
+
+        Self {
+            id,
+            author,
+            content,
+            attachments,
+        }
+    }
 }
 
 #[derive(Debug)]

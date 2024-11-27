@@ -6,11 +6,7 @@ pub async fn to_core_message(message: &Message) -> Result<core::Message> {
     let dsc_author = &message.author;
     let core_author = to_core_author(dsc_author)?;
 
-    Ok(core::Message {
-        author: core_author,
-        content: message.content.clone(),
-        attachments: vec![],
-    })
+    Ok(core::Message::new(core_author, message.content.clone(), vec![]).await)
 }
 
 pub fn to_core_author(author: &User) -> Result<core::Author> {
