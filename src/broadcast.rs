@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::{config::GroupConfig, core::Message};
 use color_eyre::Result;
 use serenity::async_trait;
+use tracing::instrument;
 
 #[derive(Debug, PartialEq)]
 pub enum Source {
@@ -24,6 +25,7 @@ impl Broadcaster {
         self
     }
 
+    #[instrument(skip_all)]
     pub async fn broadcast(
         &self,
         group: &GroupConfig,

@@ -63,6 +63,7 @@ struct BotEventHandler {
 
 #[async_trait]
 impl EventHandler for BotEventHandler {
+    #[instrument(skip_all)]
     async fn message(&self, _ctx: Context, msg: Message) {
         if msg.author.bot || msg.author.system {
             return;
@@ -82,15 +83,22 @@ impl EventHandler for BotEventHandler {
         }
         let group = group.first().unwrap();
 
-        let core_msg = to_core_message(&msg)
-            .await
-            .expect("failed to parse to core message");
+        let core_msg = match to_core_message(&msg).await {
+            Ok(core_msg) => core_msg,
+            Err(why) => {
+                error!(?why, "Failed to parse into core message");
+                return;
+            }
+        };
 
-        self.broadcaster
+        if let Err(why) = self
+            .broadcaster
             .lock()
             .await
             .broadcast(group, &core_msg, Source::Discord)
             .await
-            .expect("failed to broadcast message");
+        {
+            error!(?why, "Failed to broadcast message");
+        }
     }
 }
