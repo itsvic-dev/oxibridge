@@ -78,10 +78,10 @@ impl EventHandler for BotEventHandler {
             .filter(|g| g.discord_channel == msg.channel_id.get())
             .collect();
 
-        if group.is_empty() {
-            return;
-        }
-        let group = group.first().unwrap();
+        let group = match group.first() {
+            Some(group) => group,
+            None => return,
+        };
 
         let core_msg = match to_core_message(&msg).await {
             Ok(core_msg) => core_msg,

@@ -57,12 +57,11 @@ impl R2Storage {
         let hash = sha256::digest(&content);
 
         // check if file is in cache. subtracting 10s from expiry time to account for possible latency between the cache hit and Discord pulling it
-        if self.cache.contains_key(&hash)
-            && (self.cache.get(&hash).unwrap().expiry_time - Duration::from_secs(10))
-                >= SystemTime::now()
-        {
+        if let Some(cache_item) = self.cache.get(&hash) {
+            if cache_item.expiry_time - Duration::from_secs(10) >= SystemTime::now() {
             debug!("cache hit for file {file:?}");
-            return Ok(self.cache.get(&hash).unwrap().url.clone());
+            return Ok(cache_item.url.clone());
+            }
         }
 
         // upload the file to S3 and get new presigned URL

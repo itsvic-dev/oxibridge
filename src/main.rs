@@ -37,11 +37,11 @@ async fn main() -> Result<()> {
     )?)?;
     let config: Arc<Config> = Arc::new(serde_yaml::from_str(&config)?);
 
-    let storage = config
-        .shared
-        .r2
-        .as_ref()
-        .map(|config| Arc::new(Mutex::new(storage::R2Storage::new(config).unwrap())));
+    let storage = if let Some(config) = &config.shared.r2 {
+        Some(Arc::new(Mutex::new(storage::R2Storage::new(config)?)))
+    } else {
+        None
+    };
 
     let broadcaster = Arc::new(Mutex::new(Broadcaster::init()));
 

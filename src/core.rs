@@ -1,6 +1,6 @@
 use color_eyre::Result;
 use std::{env::temp_dir, fs, path::PathBuf};
-use tracing::debug;
+use tracing::{debug, error};
 
 #[derive(Debug)]
 pub struct Author {
@@ -46,7 +46,10 @@ pub struct File {
 impl Drop for File {
     fn drop(&mut self) {
         debug!("removing file {:?}", &self.path);
-        fs::remove_file(&self.path).expect("failed to remove file");
+        // this shouldn't be fatal
+        if let Err(e) = fs::remove_file(&self.path) {
+            error!("failed to remove file: {:?}", e);
+        }
     }
 }
 

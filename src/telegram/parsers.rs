@@ -11,7 +11,10 @@ use tracing::*;
 
 #[instrument(skip(bot, m))]
 pub async fn to_core_message(bot: Bot, m: Message) -> color_eyre::Result<core::Message> {
-    let tg_author = m.from.as_ref().unwrap();
+    let tg_author = match m.from.as_ref() {
+        Some(author) => author,
+        None => return Err(color_eyre::eyre::eyre!("Message has no author")),
+    };
     let core_author = to_core_author(bot.clone(), tg_author).await?;
 
     let (content, attachments) = match &m.kind {
@@ -152,9 +155,12 @@ async fn to_core_author(bot: Bot, author: &types::User) -> color_eyre::Result<co
 }
 
 pub async fn photo_to_core_file(bot: Bot, photo: &[PhotoSize]) -> color_eyre::Result<core::File> {
-    let photo = photo.last().unwrap();
-    let file = bot.get_file(&photo.file.id).await?;
-    to_core_file(bot, &file).await
+    if let Some(photo) = photo.last() {
+        let file = bot.get_file(&photo.file.id).await?;
+        to_core_file(bot, &file).await
+    } else {
+        Err(color_eyre::eyre::eyre!("No photo found"))
+    }
 }
 
 #[instrument(skip(bot))]
@@ -162,11 +168,11 @@ pub async fn to_core_file(
     bot: Bot,
     file: &teloxide::types::File,
 ) -> color_eyre::Result<core::File> {
-    let path = core::get_tmp_dir()?.join(format!(
-        "{}.{}",
-        &file.unique_id,
-        Path::new(&file.path).extension().unwrap().to_str().unwrap()
-    ));
+    let extension = Path::new(&file.path)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .ok_or_else(|| color_eyre::eyre::eyre!("Failed to get file extension"))?;
+    let path = core::get_tmp_dir()?.join(format!("{}.{}", &file.unique_id, extension));
     let mut dst = fs::File::create(&path).await?;
     bot.download_file(&file.path, &mut dst).await?;
 

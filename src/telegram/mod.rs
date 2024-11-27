@@ -58,10 +58,10 @@ async fn message_handle(
         .filter(|g| g.telegram_chat == message.chat.id.0)
         .collect();
 
-    if group.is_empty() {
-        return Ok(());
-    }
-    let group = group.first().unwrap();
+    let group = match group.first() {
+        Some(group) => group,
+        None => return Ok(()),
+    };
 
     let core_message = to_core_message(bot, message).await?;
     debug!(?core_message, "parsed core message");
