@@ -28,6 +28,7 @@ pub async fn to_core_message(bot: Bot, m: &Message) -> color_eyre::Result<core::
                     vec![core::Attachment {
                         file: attachment,
                         spoilered: photo.has_media_spoiler,
+                        filename: String::new(),
                     }],
                 )
             }
@@ -40,6 +41,7 @@ pub async fn to_core_message(bot: Bot, m: &Message) -> color_eyre::Result<core::
                     vec![core::Attachment {
                         file: attachment,
                         spoilered: video.has_media_spoiler,
+                        filename: String::new(),
                     }],
                 )
             }
@@ -52,6 +54,7 @@ pub async fn to_core_message(bot: Bot, m: &Message) -> color_eyre::Result<core::
                     vec![core::Attachment {
                         file: attachment,
                         spoilered: animation.has_media_spoiler,
+                        filename: String::new(),
                     }],
                 )
             }
@@ -80,6 +83,7 @@ pub async fn to_core_message(bot: Bot, m: &Message) -> color_eyre::Result<core::
                             vec![core::Attachment {
                                 file: attachment,
                                 spoilered: false,
+                                filename: String::new(),
                             }],
                         )
                     }

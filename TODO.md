@@ -9,7 +9,7 @@ features that need to be worked on:
   - [x] messages
   - [x] attachments
     - [x] broadcast receiver
-    - [ ] broadcaster
+    - [x] broadcaster
   - [x] webhook avatars
   - [x] message edits
   - [ ] message deletes
@@ -21,7 +21,7 @@ features that need to be worked on:
     - [x] MD to entities
     - [ ] entities to MD (for broadcasting)
   - [x] attachments
-    - [ ] broadcast receiver
+    - [x] broadcast receiver
     - [x] broadcaster
   - [x] message edits
   - [ ] message deletes

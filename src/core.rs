@@ -53,5 +53,6 @@ impl Message {
 #[derive(Debug)]
 pub struct Attachment {
     pub file: TempFile,
+    pub filename: String,
     pub spoilered: bool,
 }

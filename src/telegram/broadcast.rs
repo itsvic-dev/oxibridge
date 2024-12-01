@@ -7,7 +7,7 @@ use serenity::async_trait;
 use teloxide::{
     payloads::{EditMessageTextSetters, SendMessageSetters},
     prelude::Requester,
-    types::{ChatId, Recipient},
+    types::{ChatId, InputFile, InputMedia, InputMediaDocument, Recipient},
 };
 use tracing::*;
 
@@ -17,6 +17,8 @@ use super::{entities::to_string_with_entities, TelegramBridge};
 impl BroadcastReceiver for TelegramBridge {
     #[instrument(skip_all)]
     async fn receive(&self, group: &GroupConfig, event: &MessageEvent) -> Result<()> {
+        let chat_id = Recipient::Id(ChatId(group.telegram_chat));
+
         match event {
             MessageEvent::Create(core_msg) => {
                 let text = format!(
@@ -26,24 +28,41 @@ impl BroadcastReceiver for TelegramBridge {
                 );
 
                 let parsed = to_string_with_entities(&text);
+                let content = String::from_utf16_lossy(&parsed.0);
 
-                let msg = if !core_msg.attachments.is_empty() {
-                    todo!();
+                let messages = if !core_msg.attachments.is_empty() {
+                    // just send as documents for now
+                    let media = core_msg
+                        .attachments
+                        .iter()
+                        .map(|x| {
+                            InputMedia::Document(
+                                InputMediaDocument::new(
+                                    InputFile::file(x.file.file_path())
+                                        .file_name(x.filename.clone()),
+                                )
+                                .caption(&content)
+                                .caption_entities(parsed.1.clone()),
+                            )
+                        })
+                        .collect::<Vec<InputMedia>>();
+                    self.bot.send_media_group(chat_id, media).await?
                 } else {
-                    self.bot
-                        .send_message(
-                            Recipient::Id(ChatId(group.telegram_chat)),
-                            String::from_utf16_lossy(&parsed.0),
-                        )
-                        .entities(parsed.1)
-                        .await?
+                    vec![
+                        self.bot
+                            .send_message(chat_id, content)
+                            .entities(parsed.1)
+                            .await?,
+                    ]
                 };
 
                 let mut cache = self.cache.lock().await;
-                cache
-                    .core_tg_cache
-                    .insert(core_msg.id, (msg.id, core_msg.author.full_name().clone()));
-                cache.tg_core_cache.insert(msg.id, core_msg.id);
+                for msg in messages {
+                    cache
+                        .core_tg_cache
+                        .insert(core_msg.id, (msg.id, core_msg.author.full_name().clone()));
+                    cache.tg_core_cache.insert(msg.id, core_msg.id);
+                }
                 debug!(?cache, "current message cache state");
             }
 
