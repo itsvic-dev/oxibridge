@@ -1,5 +1,5 @@
 use serenity::{
-    all::{Context, EventHandler, Message, MessageUpdateEvent},
+    all::{ChannelId, Context, EventHandler, GuildId, Message, MessageId, MessageUpdateEvent},
     async_trait,
 };
 use tracing::*;
@@ -88,7 +88,7 @@ impl EventHandler for BotEventHandler {
 
         let cache = self.cache.lock().await;
         let core_id = match cache.dsc_core_cache.get(&event.id) {
-            Some(id) => id,
+            Some(id) => *id,
             None => {
                 error!("Could not find edited message in local cache");
                 return;
@@ -101,9 +101,46 @@ impl EventHandler for BotEventHandler {
             .await
             .broadcast(
                 group,
-                &MessageEvent::Update(*core_id, event.content.unwrap_or_default()),
+                &MessageEvent::Update(core_id, event.content.unwrap_or_default()),
                 Source::Discord,
             )
+            .await
+        {
+            error!(?why, "Failed to broadcast message");
+        }
+    }
+
+    async fn message_delete(
+        &self,
+        _ctx: Context,
+        channel_id: ChannelId,
+        deleted_id: MessageId,
+        _guild_id: Option<GuildId>,
+    ) {
+        // find the respective group
+        let group: Vec<GroupConfig> = self
+            .config
+            .groups
+            .clone()
+            .into_iter()
+            .filter(|g| g.discord_channel == channel_id.get())
+            .collect();
+
+        let group = match group.first() {
+            Some(group) => group,
+            None => return,
+        };
+
+        let core_id = match self.cache.lock().await.dsc_core_cache.get(&deleted_id) {
+            Some(id) => *id,
+            None => return,
+        };
+
+        if let Err(why) = self
+            .broadcaster
+            .lock()
+            .await
+            .broadcast(group, &MessageEvent::Delete(core_id), Source::Discord)
             .await
         {
             error!(?why, "Failed to broadcast message");
