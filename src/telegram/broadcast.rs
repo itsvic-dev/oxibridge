@@ -57,16 +57,12 @@ impl BroadcastReceiver for TelegramBridge {
                 };
 
                 let mut cache = self.cache.lock().await;
-                // FIXME: core->tg is broken in the case of multiple attachments
-                // because attachments are individual messages
-                // core_tg_cache should have a Vec<MessageId>
-                // but this is a refactor for another day
-                for msg in messages {
+                if let Some(msg) = messages.first() {
                     cache
                         .core_tg_cache
                         .insert(core_msg.id, (msg.id, core_msg.author.full_name().clone()));
                     cache.tg_core_cache.insert(msg.id, core_msg.id);
-                }
+                };
                 debug!(?cache, "current message cache state");
             }
 
@@ -91,6 +87,7 @@ impl BroadcastReceiver for TelegramBridge {
                     .await?;
             }
 
+            // this might not work correctly with multi-attachment messages
             MessageEvent::Delete(id) => {
                 let tg_id = match self.cache.lock().await.core_tg_cache.get(id) {
                     Some((id, _str)) => *id,
