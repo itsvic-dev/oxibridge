@@ -74,6 +74,19 @@ fn node_to_entities(node: &Node) -> StringWithEntities {
             vec![MessageEntity::pre(node.lang.clone(), 0, node.value.len())],
         ),
 
+        Node::Heading(heading) => {
+            let string = nodes_to_entities(heading.children.clone());
+            let full_heading = ("#".repeat(heading.depth.into()) + " ")
+                .encode_utf16()
+                .chain(string.0)
+                .collect::<Vec<u16>>();
+
+            let entity = MessageEntity::bold(0, full_heading.len());
+            let entities = [entity].into_iter().chain(string.1).collect();
+
+            StringWithEntities(full_heading, entities)
+        }
+
         _ => StringWithEntities(
             format!("unknown node {node:?}").encode_utf16().collect(),
             vec![],
