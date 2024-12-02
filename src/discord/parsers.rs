@@ -7,7 +7,7 @@ use serenity::{
 };
 use tokio::io::AsyncWriteExt;
 
-pub async fn to_core_message(message: &Message) -> Result<core::Message> {
+pub async fn to_core_message(message: &Message, in_reply_to: Option<u64>) -> Result<core::Message> {
     let dsc_author = &message.author;
     let core_author = to_core_author(dsc_author)?;
 
@@ -17,7 +17,13 @@ pub async fn to_core_message(message: &Message) -> Result<core::Message> {
         attachments.push(to_core_attachment(attachment).await?);
     }
 
-    Ok(core::Message::new(core_author, message.content.clone(), attachments, None).await)
+    Ok(core::Message::new(
+        core_author,
+        message.content.clone(),
+        attachments,
+        in_reply_to,
+    )
+    .await)
 }
 
 pub fn to_core_author(author: &User) -> Result<core::Author> {

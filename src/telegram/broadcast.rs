@@ -5,9 +5,9 @@ use crate::{
 use color_eyre::eyre::{eyre, Result};
 use serenity::async_trait;
 use teloxide::{
-    payloads::{EditMessageTextSetters, SendMessageSetters},
+    payloads::{EditMessageTextSetters, SendMediaGroupSetters, SendMessageSetters},
     prelude::Requester,
-    types::{ChatId, InputFile, InputMedia, InputMediaDocument, Recipient},
+    types::{ChatId, InputFile, InputMedia, InputMediaDocument, Recipient, ReplyParameters},
 };
 use tracing::*;
 
@@ -30,6 +30,14 @@ impl BroadcastReceiver for TelegramBridge {
                 let parsed = to_string_with_entities(&text);
                 let content = String::from_utf16_lossy(&parsed.0);
 
+                let mut cache = self.cache.lock().await;
+
+                // get core ID of reply if possible
+                let tg_reply = match core_msg.in_reply_to {
+                    Some(id) => cache.core_tg_cache.get(&id).map(|result| result.0),
+                    None => None,
+                };
+
                 let messages = if !core_msg.attachments.is_empty() {
                     // just send as documents for now
                     let media = core_msg
@@ -46,17 +54,26 @@ impl BroadcastReceiver for TelegramBridge {
                             )
                         })
                         .collect::<Vec<InputMedia>>();
-                    self.bot.send_media_group(chat_id, media).await?
+                    self.bot
+                        .send_media_group(chat_id, media)
+                        .reply_parameters(match tg_reply {
+                            Some(id) => ReplyParameters::new(id),
+                            None => ReplyParameters::default(),
+                        })
+                        .await?
                 } else {
                     vec![
                         self.bot
                             .send_message(chat_id, content)
                             .entities(parsed.1)
+                            .reply_parameters(match tg_reply {
+                                Some(id) => ReplyParameters::new(id),
+                                None => ReplyParameters::default(),
+                            })
                             .await?,
                     ]
                 };
 
-                let mut cache = self.cache.lock().await;
                 if let Some(msg) = messages.first() {
                     cache
                         .core_tg_cache

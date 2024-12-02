@@ -37,12 +37,11 @@ pub async fn message_handle(
 
     let core_message = to_core_message(bot, &message).await?;
 
-    // cache tg->core
+    let mut cache = cache.lock().await;
+    cache.tg_core_cache.insert(message.id, core_message.id);
     cache
-        .lock()
-        .await
-        .tg_core_cache
-        .insert(message.id, core_message.id);
+        .core_tg_cache
+        .insert(core_message.id, (message.id, String::new()));
 
     broadcaster
         .lock()

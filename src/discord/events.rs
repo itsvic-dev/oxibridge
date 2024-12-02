@@ -1,5 +1,8 @@
 use serenity::{
-    all::{ChannelId, Context, EventHandler, GuildId, Message, MessageId, MessageUpdateEvent},
+    all::{
+        ChannelId, Context, EventHandler, GuildId, Message, MessageId, MessageReferenceKind,
+        MessageUpdateEvent,
+    },
     async_trait,
 };
 use tracing::*;
@@ -33,7 +36,22 @@ impl EventHandler for BotEventHandler {
             None => return,
         };
 
-        let core_msg = match to_core_message(&msg).await {
+        let mut cache = self.cache.lock().await;
+
+        // if the message has a reply reference, grab its core ID if possible
+        let reply_id = match &msg.message_reference {
+            Some(reference) => match reference.kind {
+                MessageReferenceKind::Default => reference
+                    .message_id
+                    .and_then(|id| cache.dsc_core_cache.get(&id).copied()),
+                _ => None,
+            },
+            None => None,
+        };
+
+        debug!(?reply_id, "handling message");
+
+        let core_msg = match to_core_message(&msg, reply_id).await {
             Ok(core_msg) => core_msg,
             Err(why) => {
                 error!(?why, "Failed to parse into core message");
@@ -43,7 +61,6 @@ impl EventHandler for BotEventHandler {
 
         // only cache dsc->core
         // for discord messages, we obviously won't be handling external events lol
-        let mut cache = self.cache.lock().await;
         cache.dsc_core_cache.insert(msg.id, core_msg.id);
 
         if let Err(why) = self

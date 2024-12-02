@@ -33,3 +33,7 @@ features that need to be worked on:
 
   - [ ] reactions (edits)
   - [ ] message replies
+    - [x] discord: broadcaster
+    - [ ] discord: broadcast receiver
+    - [ ] telegram: broadcaster
+    - [x] telegram: broadcast receiver
