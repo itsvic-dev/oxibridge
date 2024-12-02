@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{config::GroupConfig, core::Message};
 use color_eyre::Result;
 use serenity::async_trait;
-use tracing::instrument;
+use tracing::*;
 
 #[derive(Debug, PartialEq)]
 pub enum Source {
@@ -39,8 +39,10 @@ impl Broadcaster {
         event: &MessageEvent,
         source: Source,
     ) -> Result<()> {
+        debug!(?group, ?event, ?source, "broadcasting message");
         for receiver in &self.sources {
             if receiver.get_receiver_source() != source {
+                debug!("sending to {:?}", receiver.get_receiver_source());
                 receiver.receive(group, event).await?;
             }
         }

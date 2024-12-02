@@ -59,10 +59,14 @@ impl EventHandler for BotEventHandler {
             }
         };
 
+        debug!(?core_msg, "got core message");
+
         cache.dsc_core_cache.insert(msg.id, core_msg.id);
         cache
             .core_dsc_cache
             .insert(core_msg.id, (msg.id, String::new()));
+
+        debug!("inserted into cache, broadcasting");
 
         if let Err(why) = self
             .broadcaster
