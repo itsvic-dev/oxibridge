@@ -5,9 +5,132 @@ use async_tempfile::TempFile;
 use teloxide::{
     net::Download,
     prelude::*,
-    types::{self, MediaKind, MessageKind, MessageOrigin, PhotoSize},
+    types::{self, Dice, MediaKind, MessageKind, MessageOrigin, PhotoSize},
 };
 use tracing::*;
+
+pub fn serialize_die_value(die: Dice) -> String {
+    match die.emoji {
+        types::DiceEmoji::Dice => match die.value {
+            1 => "⚀".to_string(),
+            2 => "⚁".to_string(),
+            3 => "⚂".to_string(),
+            4 => "⚃".to_string(),
+            5 => "⚄".to_string(),
+            6 => "⚅".to_string(),
+            _ => "🎲".to_string(),
+        },
+        types::DiceEmoji::Darts => {
+            tracing::debug!("Darts dice value: {}", die.value);
+
+            // 1 is miss
+            // 2 is outer double
+            // 3 is outer single
+            // 4 is triple ring
+            // 5 is inner single
+            // 6 is bullseye
+
+            //  a value of 6 currently represents a bullseye, while a value of 1 indicates that the dartboard was missed.
+            match die.value {
+                1 => "🎯❌ Miss!",
+                2 => "🎯🎯 Outer double!",
+                3 => "🎯🎯 Outer single!",
+                4 => "🎯🎯🎯 Triple ring!",
+                5 => "🎯🎯 Inner single!",
+                6 => "🎯🎯🎯 Bullseye!",
+                _ => "🎯",
+            }
+            .to_string()
+        }
+        types::DiceEmoji::Bowling => {
+            tracing::debug!("Bowling dice value: {}", die.value);
+
+            // 1 is right gutter
+            // 2 is left taking down only 1 pin
+            // 3 is mid-left, taking down 3 pins
+            // 4 is mid-right, taking down 4 pins
+            // 5 is spare (taking down 5 pins)
+            // 6 is strike
+            // let's do the math
+
+            match die.value {
+                1 => "🎳❌ Gutter!",
+                2 => "🎳🫡 1 pin down",
+                3 => "🎳🫡 Split! 3 pins down",
+                4 => "🎳🫡 4 pins down",
+                5 => "🎳🫡 Spare! 5 pins down",
+                6 => "🎳🎳 Strike!",
+                _ => "🎳",
+            }
+            .to_string()
+        }
+        types::DiceEmoji::Basketball => {
+            // should be similar to football
+
+            tracing::debug!("Basketball dice value: {}", die.value);
+            let dunk = die.value >= 4;
+            if dunk {
+                "🏀🔥".to_string()
+            } else {
+                "🏀❌".to_string()
+            }
+        }
+        types::DiceEmoji::Football => {
+            tracing::debug!("Football dice value: {}", die.value);
+            // let's document the mapping here..
+
+            // If emoji is “⚽”, a value of 4 to 5 currently scores a goal, while a value of 1 to 3
+            // indicates that the goal was missed. However, this behaviour is undocumented and might be changed by Telegram.
+
+            // 1 is overshot (miss)
+            // 2 is top left miss
+            // 3 is middle goal?
+            // 4 is left goal, hitting right post and going in net
+            // 5 is top right goal
+
+            let goal = die.value >= 3;
+            if goal {
+                "⚽️🥅".to_string()
+            } else {
+                "⚽️❌".to_string()
+            }
+        }
+        types::DiceEmoji::SlotMachine => {
+            let values: [u8; 3] = [
+                (die.value - 1) & 3,
+                ((die.value - 1) >> 2) & 3,
+                ((die.value - 1) >> 4) & 3,
+            ];
+
+            // map those values to the correct slot emoji
+
+            fn slot(value: u8) -> String {
+                match value {
+                    // 0 is BAR
+                    0 => "⬛",
+                    1 => "🍇",
+                    2 => "🍋",
+                    3 => "7️⃣",
+                    _ => "🎰",
+                }
+                .to_string()
+            }
+
+            let value = format!(
+                "[{} {} {}]",
+                slot(values[0]),
+                slot(values[1]),
+                slot(values[2])
+            );
+
+            if values.iter().all(|&v| v == 3) {
+                format!("{value} 🎉🎉🎉 JACKPOT!!! 🎉🎉🎉", value = value)
+            } else {
+                value
+            }
+        }
+    }
+}
 
 #[instrument(skip(bot, m))]
 pub async fn to_core_message(
@@ -95,9 +218,53 @@ pub async fn to_core_message(
                 }
             }
 
-            _ => ("[Unknown media kind]".to_owned(), vec![]),
+            _ => ("[Unknown media kind]".to_owned(), {
+                tracing::warn!("Unknown media kind: {:?}", &common.media_kind);
+                vec![]
+            }),
         },
-        _ => ("[Unknown message kind]".to_owned(), vec![]),
+        MessageKind::Dice(die) => (
+            {
+                // dice.emoji implements serde::Serialize, so we can just use it
+                let value = serialize_die_value(die.dice.clone());
+
+                format!("_{} rolled a die!_\n {}", core_author.full_name(), value)
+            },
+            vec![],
+        ),
+        MessageKind::NewChatMembers(members) => (
+            {
+                let m = members
+                    .new_chat_members
+                    .iter()
+                    .map(|member| member.full_name())
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                format!("_{} joined the chat_", m)
+            },
+            vec![],
+        ),
+        MessageKind::LeftChatMember(member) => (
+            format!("_{} left the chat_", member.left_chat_member.full_name()),
+            vec![],
+        ),
+        MessageKind::Empty {} => ("[Empty message]".to_owned(), vec![]),
+        MessageKind::Pinned(pinned) => (
+            format!(
+                "_{} pinned a message:_\n{}",
+                core_author.full_name(),
+                pinned
+                    .pinned
+                    .as_ref()
+                    .regular_message()
+                    .map_or("", |m| m.text().unwrap_or(""))
+            ),
+            vec![],
+        ),
+        _ => ("[Unknown message kind]".to_owned(), {
+            tracing::warn!("Unknown message kind: {:?}", &m.kind);
+            vec![]
+        }),
     };
 
     let forwarded_header = match m.forward_origin() {
