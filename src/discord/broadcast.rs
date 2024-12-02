@@ -7,7 +7,7 @@ use serenity::{
     all::{CreateAttachment, EditWebhookMessage, ExecuteWebhook, Http, Webhook},
     async_trait,
 };
-use tracing::{debug, instrument};
+use tracing::*;
 
 use super::DiscordBridge;
 
@@ -63,14 +63,16 @@ impl BroadcastReceiver for DiscordBridge {
                 if let Some(msg) = msg {
                     let mut cache = self.cache.lock().await;
                     cache.dsc_core_cache.insert(msg.id, core_msg.id);
-                    cache.core_dsc_cache.insert(core_msg.id, msg.id);
+                    cache
+                        .core_dsc_cache
+                        .insert(core_msg.id, (msg.id, String::new()));
                 };
             }
 
             MessageEvent::Update(core_id, text) => {
                 // get dsc message id
-                let dsc_id = match self.cache.lock().await.core_dsc_cache.get(core_id) {
-                    Some(id) => *id,
+                let (dsc_id, header) = match self.cache.lock().await.core_dsc_cache.get(core_id) {
+                    Some((id, header)) => (*id, header.clone()),
                     None => {
                         return Err(eyre!(
                             "could not find core message {core_id} in Discord cache"
@@ -78,8 +80,7 @@ impl BroadcastReceiver for DiscordBridge {
                     }
                 };
 
-                let builder = EditWebhookMessage::new().content(text);
-                debug!("handled edit");
+                let builder = EditWebhookMessage::new().content(header + text);
 
                 webhook.edit_message(&http, dsc_id, builder).await?;
             }

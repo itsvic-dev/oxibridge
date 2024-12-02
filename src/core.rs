@@ -31,12 +31,18 @@ pub struct Message {
     pub content: String,
     pub attachments: Vec<Attachment>,
     pub id: u64,
+    pub in_reply_to: Option<u64>,
 }
 
 static NEXT_ID: LazyLock<Mutex<u64>> = LazyLock::new(|| Mutex::new(0));
 
 impl Message {
-    pub async fn new(author: Author, content: String, attachments: Vec<Attachment>) -> Self {
+    pub async fn new(
+        author: Author,
+        content: String,
+        attachments: Vec<Attachment>,
+        in_reply_to: Option<u64>,
+    ) -> Self {
         let mut next_id = NEXT_ID.lock().await;
         let id = *next_id;
         *next_id += 1;
@@ -46,6 +52,7 @@ impl Message {
             author,
             content,
             attachments,
+            in_reply_to,
         }
     }
 }

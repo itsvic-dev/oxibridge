@@ -23,8 +23,8 @@ struct DscCache {
     /// Cache of Discord IDs to core message IDs.
     dsc_core_cache: HashMap<MessageId, u64>,
 
-    /// Cache of core message IDs to Discord IDs.
-    core_dsc_cache: HashMap<u64, MessageId>,
+    /// Cache of core message IDs to (Discord IDs, message headers).
+    core_dsc_cache: HashMap<u64, (MessageId, String)>,
 }
 
 impl DiscordBridge {

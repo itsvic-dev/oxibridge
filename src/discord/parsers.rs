@@ -17,7 +17,7 @@ pub async fn to_core_message(message: &Message) -> Result<core::Message> {
         attachments.push(to_core_attachment(attachment).await?);
     }
 
-    Ok(core::Message::new(core_author, message.content.clone(), attachments).await)
+    Ok(core::Message::new(core_author, message.content.clone(), attachments, None).await)
 }
 
 pub fn to_core_author(author: &User) -> Result<core::Author> {

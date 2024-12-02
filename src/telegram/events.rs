@@ -36,7 +36,6 @@ pub async fn message_handle(
     };
 
     let core_message = to_core_message(bot, &message).await?;
-    debug!(?core_message, "parsed core message");
 
     // cache tg->core
     cache
