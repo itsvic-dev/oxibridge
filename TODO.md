@@ -15,7 +15,6 @@ features that need to be worked on:
   - [x] message deletes
     - [ ] broadcast receiver
     - [x] broadcaster
-  - [ ] reactions (edits)
 
 - telegram
 
@@ -28,5 +27,9 @@ features that need to be worked on:
   - [x] message edits
   - [x] message deletes
     - [x] broadcast receiver
-    - [ ] broadcaster
+    - [ ] broadcaster (impossible for now, thanks tg bot api!!)
+
+- comfort features
+
   - [ ] reactions (edits)
+  - [ ] message replies
