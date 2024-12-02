@@ -36,7 +36,9 @@ async fn main() -> Result<()> {
     info!("hello, world!");
 
     debug!("reading config file");
-    let config = String::from_utf8(tokio::fs::read("config.yml").await.suggestion(
+    let config = String::from_utf8(tokio::fs::read(
+        std::env::var("CONFIG_FILE").unwrap_or("config.yml".to_owned())
+    ).await.suggestion(
         "Create a `config.yml` file and fill it out. Look at `config.example.yml` for reference.",
     )?)?;
     let config: Arc<Config> = Arc::new(serde_yaml::from_str(&config)?);

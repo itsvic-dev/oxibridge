@@ -22,15 +22,12 @@
           pkgs = nixpkgsFor.${system};
         in
         {
-          default = pkgs.rustPlatform.buildRustPackage rec {
-            pname = "oxibridge";
-            version = "0.1.0";
-            src = ./.;
-            cargoLock = {
-              lockFile = ./Cargo.lock;
-            };
-          };
+          default = pkgs.callPackage ./nix/package.nix { };
         }
       );
+
+      nixosModules = forAllSystems (system: {
+        default = import ./nix/module.nix { oxibridge = self.packages.${system}.default; };
+      });
     };
 }
