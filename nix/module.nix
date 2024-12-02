@@ -22,12 +22,20 @@ in
 
       serviceConfig = {
         ExecStart = getExe oxibridge;
-        Restart = "always";
+        Restart = "on-failure";
+        User = "oxibridge";
+        Group = "oxibridge";
       };
 
       environment = {
         CONFIG_FILE = cfg.configFile;
       };
     };
+
+    users.users.oxibridge = {
+      isSystemUser = true;
+      group = "oxibridge";
+    };
+    users.groups.oxibridge = { };
   };
 }
