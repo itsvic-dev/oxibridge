@@ -32,8 +32,4 @@ features that need to be worked on:
 - comfort features
 
   - [ ] reactions (edits)
-  - [ ] message replies
-    - [x] discord: broadcaster
-    - [ ] discord: broadcast receiver
-    - [ ] telegram: broadcaster
-    - [x] telegram: broadcast receiver
+  - [x] message replies

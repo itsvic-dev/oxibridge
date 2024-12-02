@@ -59,9 +59,10 @@ impl EventHandler for BotEventHandler {
             }
         };
 
-        // only cache dsc->core
-        // for discord messages, we obviously won't be handling external events lol
         cache.dsc_core_cache.insert(msg.id, core_msg.id);
+        cache
+            .core_dsc_cache
+            .insert(core_msg.id, (msg.id, String::new()));
 
         if let Err(why) = self
             .broadcaster

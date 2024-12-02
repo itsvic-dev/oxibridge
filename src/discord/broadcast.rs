@@ -4,7 +4,7 @@ use crate::{
 };
 use color_eyre::{eyre::eyre, Result};
 use serenity::{
-    all::{CreateAttachment, EditWebhookMessage, ExecuteWebhook, Http, Webhook},
+    all::{CreateAttachment, EditWebhookMessage, ExecuteWebhook, Webhook},
     async_trait,
 };
 use tracing::*;
@@ -15,13 +15,44 @@ use super::DiscordBridge;
 impl BroadcastReceiver for DiscordBridge {
     #[instrument(skip_all)]
     async fn receive(&self, group: &GroupConfig, event: &MessageEvent) -> Result<()> {
-        let http = Http::new("");
-        let webhook = Webhook::from_url(&http, &group.discord_webhook).await?;
+        let webhook = Webhook::from_url(self.http.clone(), &group.discord_webhook).await?;
 
         match event {
             MessageEvent::Create(core_msg) => {
+                let mut cache = self.cache.lock().await;
+
+                // get core ID of reply if possible
+                let dsc_reply = match core_msg.in_reply_to {
+                    Some(id) => cache.core_dsc_cache.get(&id).map(|result| result.0),
+                    None => None,
+                };
+
+                // get the message to get the author
+                let reply_msg = match dsc_reply {
+                    Some(id) => Some(
+                        self.http
+                            .clone()
+                            .get_message(group.discord_channel.into(), id)
+                            .await?,
+                    ),
+                    None => None,
+                };
+
+                let header = match reply_msg {
+                    Some(msg) => {
+                        format!(
+                            "*In reply to <@{}> (https://discord.com/channels/{}/{}/{})*\n",
+                            msg.author.id.get(),
+                            msg.guild_id.unwrap_or_default(),
+                            group.discord_channel,
+                            msg.id.get(),
+                        )
+                    }
+                    None => String::new(),
+                };
+
                 let builder = ExecuteWebhook::new()
-                    .content(&core_msg.content)
+                    .content(header.clone() + &core_msg.content)
                     .username(core_msg.author.full_name());
 
                 let builder = match &self.storage {
@@ -58,14 +89,11 @@ impl BroadcastReceiver for DiscordBridge {
                 }
 
                 let builder = builder.add_files(attachments);
-                let msg = webhook.execute(&http, true, builder).await?;
+                let msg = webhook.execute(self.http.clone(), true, builder).await?;
 
                 if let Some(msg) = msg {
-                    let mut cache = self.cache.lock().await;
                     cache.dsc_core_cache.insert(msg.id, core_msg.id);
-                    cache
-                        .core_dsc_cache
-                        .insert(core_msg.id, (msg.id, String::new()));
+                    cache.core_dsc_cache.insert(core_msg.id, (msg.id, header));
                 };
             }
 
@@ -82,7 +110,9 @@ impl BroadcastReceiver for DiscordBridge {
 
                 let builder = EditWebhookMessage::new().content(header + text);
 
-                webhook.edit_message(&http, dsc_id, builder).await?;
+                webhook
+                    .edit_message(self.http.clone(), dsc_id, builder)
+                    .await?;
             }
 
             _ => todo!(),

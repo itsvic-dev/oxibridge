@@ -35,9 +35,16 @@ pub async fn message_handle(
         None => return Ok(()),
     };
 
-    let core_message = to_core_message(bot, &message).await?;
-
     let mut cache = cache.lock().await;
+
+    // look up reply in cache
+    let core_reply = match message.reply_to_message() {
+        Some(msg) => cache.tg_core_cache.get(&msg.id).copied(),
+        None => None,
+    };
+
+    let core_message = to_core_message(bot, &message, core_reply).await?;
+
     cache.tg_core_cache.insert(message.id, core_message.id);
     cache
         .core_tg_cache

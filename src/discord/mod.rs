@@ -2,7 +2,10 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::{broadcast::Broadcaster, storage::R2Storage, Config};
 use color_eyre::Result;
-use serenity::{all::MessageId, prelude::*};
+use serenity::{
+    all::{Http, MessageId},
+    prelude::*,
+};
 use tracing::*;
 
 mod broadcast;
@@ -14,6 +17,9 @@ pub struct DiscordBridge {
 
     /// The underlying Discord client. Will likely be locked after `start()`, so don't try to read it.
     client: Arc<Mutex<Client>>,
+
+    /// A copy of the HTTP client for use by other parts of the app.
+    http: Arc<Http>,
 
     cache: Arc<Mutex<DscCache>>,
 }
@@ -56,6 +62,7 @@ impl DiscordBridge {
         ));
 
         Ok(DiscordBridge {
+            http: client.clone().lock().await.http.clone(),
             client,
             storage,
             cache,
