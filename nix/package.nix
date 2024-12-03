@@ -6,4 +6,8 @@ rustPlatform.buildRustPackage rec {
   cargoLock = {
     lockFile = ../Cargo.lock;
   };
+
+  meta = {
+    mainProgram = "oxibridge";
+  };
 }
