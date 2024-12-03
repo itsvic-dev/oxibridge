@@ -1,3 +1,5 @@
+use std::{ffi::OsStr, path::Path};
+
 use crate::{
     broadcast::{BroadcastReceiver, MessageEvent, Source},
     config::GroupConfig,
@@ -7,7 +9,10 @@ use serenity::async_trait;
 use teloxide::{
     payloads::{EditMessageTextSetters, SendMediaGroupSetters, SendMessageSetters},
     prelude::Requester,
-    types::{ChatId, InputFile, InputMedia, InputMediaDocument, Recipient, ReplyParameters},
+    types::{
+        ChatId, InputFile, InputMedia, InputMediaAudio, InputMediaDocument, InputMediaPhoto,
+        InputMediaVideo, Recipient, ReplyParameters,
+    },
 };
 use tracing::*;
 
@@ -43,19 +48,59 @@ impl BroadcastReceiver for TelegramBridge {
                 };
 
                 let messages = if !core_msg.attachments.is_empty() {
-                    // just send as documents for now
                     let media = core_msg
                         .attachments
                         .iter()
-                        .map(|x| {
-                            InputMedia::Document(
-                                InputMediaDocument::new(
-                                    InputFile::file(x.file.file_path())
-                                        .file_name(x.filename.clone()),
-                                )
-                                .caption(&content)
-                                .caption_entities(parsed.1.clone()),
-                            )
+                        .enumerate()
+                        .map(|(i, attachment)| {
+                            let file = InputFile::file(attachment.file.file_path())
+                                .file_name(attachment.filename.clone());
+
+                            match Path::new(&attachment.filename)
+                                .extension()
+                                .and_then(OsStr::to_str)
+                            {
+                                Some("png") | Some("jpg") | Some("jpeg") | Some("webp") => {
+                                    let media = InputMediaPhoto::new(file);
+                                    let media = match i {
+                                        0 => media
+                                            .caption(&content)
+                                            .caption_entities(parsed.1.clone()),
+                                        _ => media,
+                                    };
+                                    InputMedia::Photo(media)
+                                }
+                                Some("mp4") | Some("mov") | Some("mkv") | Some("webm") => {
+                                    let media = InputMediaVideo::new(file);
+                                    let media = match i {
+                                        0 => media
+                                            .caption(&content)
+                                            .caption_entities(parsed.1.clone()),
+                                        _ => media,
+                                    };
+                                    InputMedia::Video(media)
+                                }
+                                Some("mp3") | Some("wav") | Some("ogg") | Some("flac") => {
+                                    let media = InputMediaAudio::new(file);
+                                    let media = match i {
+                                        0 => media
+                                            .caption(&content)
+                                            .caption_entities(parsed.1.clone()),
+                                        _ => media,
+                                    };
+                                    InputMedia::Audio(media)
+                                }
+                                _ => {
+                                    let media = InputMediaDocument::new(file);
+                                    let media = match i {
+                                        0 => media
+                                            .caption(&content)
+                                            .caption_entities(parsed.1.clone()),
+                                        _ => media,
+                                    };
+                                    InputMedia::Document(media)
+                                }
+                            }
                         })
                         .collect::<Vec<InputMedia>>();
                     self.bot
