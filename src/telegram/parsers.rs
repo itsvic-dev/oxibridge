@@ -223,15 +223,17 @@ pub async fn to_core_message(
                 vec![]
             }),
         },
+
         MessageKind::Dice(die) => (
             {
                 // dice.emoji implements serde::Serialize, so we can just use it
                 let value = serialize_die_value(die.dice.clone());
 
-                format!("_{} rolled a die!_\n {}", core_author.full_name(), value)
+                format!("_{} rolled a die!_\n{}", core_author.full_name(), value)
             },
             vec![],
         ),
+
         MessageKind::NewChatMembers(members) => (
             {
                 let m = members
@@ -244,11 +246,12 @@ pub async fn to_core_message(
             },
             vec![],
         ),
+
         MessageKind::LeftChatMember(member) => (
             format!("_{} left the chat_", member.left_chat_member.full_name()),
             vec![],
         ),
-        MessageKind::Empty {} => ("[Empty message]".to_owned(), vec![]),
+
         MessageKind::Pinned(pinned) => (
             format!(
                 "_{} pinned a message:_\n{}",
@@ -261,6 +264,9 @@ pub async fn to_core_message(
             ),
             vec![],
         ),
+
+        MessageKind::Empty {} => ("[Empty message]".to_owned(), vec![]),
+
         _ => ("[Unknown message kind]".to_owned(), {
             tracing::warn!("Unknown message kind: {:?}", &m.kind);
             vec![]
@@ -279,6 +285,22 @@ pub async fn to_core_message(
             date: _,
             sender_user_name,
         }) => format!("*Forwarded from {}*", &sender_user_name),
+
+        Some(MessageOrigin::Chat {
+            date: _,
+            sender_chat: chat,
+            author_signature,
+        }) => match author_signature {
+            Some(signature) => format!(
+                "*Forwarded from {} ({})*",
+                chat.title().unwrap_or("an unknown chat"),
+                &signature
+            ),
+            None => format!(
+                "*Forwarded from {}*",
+                chat.title().unwrap_or("an unknown chat")
+            ),
+        },
 
         Some(MessageOrigin::Channel {
             date: _,
