@@ -53,6 +53,7 @@ impl DiscordBridge {
             config: config.clone(),
             broadcaster,
             cache: cache.clone(),
+            http: Http::new(&config.shared.discord_token),
         };
 
         let client = Arc::new(Mutex::new(
@@ -84,4 +85,5 @@ struct BotEventHandler {
     config: Arc<Config>,
 
     cache: Arc<Mutex<DscCache>>,
+    http: Http,
 }

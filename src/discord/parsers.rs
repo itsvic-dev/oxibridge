@@ -1,13 +1,22 @@
+use std::sync::LazyLock;
+
 use crate::core;
 use async_tempfile::TempFile;
 use color_eyre::eyre::Result;
+use regex::Regex;
 use serenity::{
-    all::{Attachment, Message, User},
+    all::{Attachment, Http, Message, User},
     futures::StreamExt,
 };
 use tokio::io::AsyncWriteExt;
 
-pub async fn to_core_message(message: &Message, in_reply_to: Option<u64>) -> Result<core::Message> {
+static MENTION_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<@([0-9]+)>").unwrap());
+
+pub async fn to_core_message(
+    message: &Message,
+    in_reply_to: Option<u64>,
+    http: &Http,
+) -> Result<core::Message> {
     let dsc_author = &message.author;
     let core_author = to_core_author(dsc_author)?;
 
@@ -17,13 +26,19 @@ pub async fn to_core_message(message: &Message, in_reply_to: Option<u64>) -> Res
         attachments.push(to_core_attachment(attachment).await?);
     }
 
-    Ok(core::Message::new(
-        core_author,
-        message.content.clone(),
-        attachments,
-        in_reply_to,
-    )
-    .await)
+    let mut content = message.content.clone();
+
+    // find and turn mentions into "@dc/username" format
+    for (_, [id_str]) in MENTION_RE
+        .captures_iter(&message.content)
+        .map(|c| c.extract())
+    {
+        let id = id_str.parse::<u64>()?;
+        let user = http.get_user(id.into()).await?;
+        content = content.replace(&format!("<@{id}>"), &format!("@dc/{}", user.name));
+    }
+
+    Ok(core::Message::new(core_author, content, attachments, in_reply_to).await)
 }
 
 pub fn to_core_author(author: &User) -> Result<core::Author> {

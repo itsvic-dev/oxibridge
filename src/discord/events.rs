@@ -52,7 +52,7 @@ impl EventHandler for BotEventHandler {
 
         debug!(?reply_id, "handling message");
 
-        let core_msg = match to_core_message(&msg, reply_id).await {
+        let core_msg = match to_core_message(&msg, reply_id, &self.http).await {
             Ok(core_msg) => core_msg,
             Err(why) => {
                 error!(?why, "Failed to parse into core message");
