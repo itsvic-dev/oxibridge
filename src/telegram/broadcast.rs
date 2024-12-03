@@ -30,11 +30,15 @@ impl BroadcastReceiver for TelegramBridge {
                 let parsed = to_string_with_entities(&text);
                 let content = String::from_utf16_lossy(&parsed.0);
 
-                let mut cache = self.cache.lock().await;
-
                 // get core ID of reply if possible
                 let tg_reply = match core_msg.in_reply_to {
-                    Some(id) => cache.core_tg_cache.get(&id).map(|result| result.0),
+                    Some(id) => self
+                        .cache
+                        .lock()
+                        .await
+                        .core_tg_cache
+                        .get(&id)
+                        .map(|result| result.0),
                     None => None,
                 };
 
@@ -75,12 +79,12 @@ impl BroadcastReceiver for TelegramBridge {
                 };
 
                 if let Some(msg) = messages.first() {
+                    let mut cache = self.cache.lock().await;
                     cache
                         .core_tg_cache
                         .insert(core_msg.id, (msg.id, core_msg.author.full_name().clone()));
                     cache.tg_core_cache.insert(msg.id, core_msg.id);
                 };
-                debug!(?cache, "current message cache state");
             }
 
             MessageEvent::Update(id, content) => {

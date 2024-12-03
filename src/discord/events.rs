@@ -36,14 +36,15 @@ impl EventHandler for BotEventHandler {
             None => return,
         };
 
-        let mut cache = self.cache.lock().await;
-
         // if the message has a reply reference, grab its core ID if possible
         let reply_id = match &msg.message_reference {
             Some(reference) => match reference.kind {
-                MessageReferenceKind::Default => reference
-                    .message_id
-                    .and_then(|id| cache.dsc_core_cache.get(&id).copied()),
+                MessageReferenceKind::Default => {
+                    let cache = self.cache.lock().await;
+                    reference
+                        .message_id
+                        .and_then(|id| cache.dsc_core_cache.get(&id).copied())
+                }
                 _ => None,
             },
             None => None,
@@ -61,10 +62,13 @@ impl EventHandler for BotEventHandler {
 
         debug!(?core_msg, "got core message");
 
-        cache.dsc_core_cache.insert(msg.id, core_msg.id);
-        cache
-            .core_dsc_cache
-            .insert(core_msg.id, (msg.id, String::new()));
+        {
+            let mut cache = self.cache.lock().await;
+            cache.dsc_core_cache.insert(msg.id, core_msg.id);
+            cache
+                .core_dsc_cache
+                .insert(core_msg.id, (msg.id, String::new()));
+        }
 
         debug!("inserted into cache, broadcasting");
 
@@ -108,8 +112,7 @@ impl EventHandler for BotEventHandler {
             None => return,
         };
 
-        let cache = self.cache.lock().await;
-        let core_id = match cache.dsc_core_cache.get(&event.id) {
+        let core_id = match self.cache.lock().await.dsc_core_cache.get(&event.id) {
             Some(id) => *id,
             None => {
                 error!("Could not find edited message in local cache");

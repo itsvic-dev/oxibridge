@@ -19,11 +19,15 @@ impl BroadcastReceiver for DiscordBridge {
 
         match event {
             MessageEvent::Create(core_msg) => {
-                let mut cache = self.cache.lock().await;
-
                 // get core ID of reply if possible
                 let dsc_reply = match core_msg.in_reply_to {
-                    Some(id) => cache.core_dsc_cache.get(&id).map(|result| result.0),
+                    Some(id) => self
+                        .cache
+                        .lock()
+                        .await
+                        .core_dsc_cache
+                        .get(&id)
+                        .map(|result| result.0),
                     None => None,
                 };
 
@@ -92,6 +96,7 @@ impl BroadcastReceiver for DiscordBridge {
                 let msg = webhook.execute(self.http.clone(), true, builder).await?;
 
                 if let Some(msg) = msg {
+                    let mut cache = self.cache.lock().await;
                     cache.dsc_core_cache.insert(msg.id, core_msg.id);
                     cache.core_dsc_cache.insert(core_msg.id, (msg.id, header));
                 };
