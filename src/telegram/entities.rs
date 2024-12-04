@@ -1,4 +1,7 @@
-use markdown::{mdast::Node, ParseOptions};
+use markdown::{
+    mdast::{self, Node},
+    ParseOptions,
+};
 use teloxide::types::MessageEntity;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -53,9 +56,9 @@ fn nodes_to_entities(nodes: Vec<Node>) -> StringWithEntities {
 
 fn node_to_entities(node: &Node) -> StringWithEntities {
     match node {
-        Node::Root(root) => nodes_to_entities(root.children.clone()),
-        Node::Paragraph(root) => nodes_to_entities(root.children.clone()),
-        Node::ListItem(root) => nodes_to_entities(root.children.clone()),
+        Node::Root(mdast::Root { children, .. })
+        | Node::Paragraph(mdast::Paragraph { children, .. })
+        | Node::ListItem(mdast::ListItem { children, .. }) => nodes_to_entities(children.clone()),
 
         Node::Text(text) => text.value.clone().into(),
 
@@ -143,7 +146,7 @@ fn node_to_entities(node: &Node) -> StringWithEntities {
         }
 
         _ => StringWithEntities(
-            format!("unknown node {node:?}").encode_utf16().collect(),
+            format!("unknown node {node:#?}").encode_utf16().collect(),
             vec![],
         ),
     }
