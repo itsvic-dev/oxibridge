@@ -35,6 +35,18 @@ impl StringWithEntities {
     }
 }
 
+impl From<String> for StringWithEntities {
+    fn from(val: String) -> Self {
+        StringWithEntities(val.encode_utf16().collect(), vec![])
+    }
+}
+
+impl From<&str> for StringWithEntities {
+    fn from(val: &str) -> Self {
+        StringWithEntities(val.encode_utf16().collect(), vec![])
+    }
+}
+
 fn nodes_to_entities(nodes: Vec<Node>) -> StringWithEntities {
     StringWithEntities::join_strings(nodes.iter().map(node_to_entities).collect())
 }
@@ -43,8 +55,9 @@ fn node_to_entities(node: &Node) -> StringWithEntities {
     match node {
         Node::Root(root) => nodes_to_entities(root.children.clone()),
         Node::Paragraph(root) => nodes_to_entities(root.children.clone()),
+        Node::ListItem(root) => nodes_to_entities(root.children.clone()),
 
-        Node::Text(text) => StringWithEntities(text.value.encode_utf16().collect(), vec![]),
+        Node::Text(text) => text.value.clone().into(),
 
         Node::Strong(strong) => {
             let string = nodes_to_entities(strong.children.clone());
@@ -87,6 +100,48 @@ fn node_to_entities(node: &Node) -> StringWithEntities {
             StringWithEntities(full_heading, entities)
         }
 
+        Node::List(list) => {
+            let children = list
+                .children
+                .iter()
+                .map(node_to_entities)
+                .collect::<Vec<StringWithEntities>>();
+
+            // if unordered, prepend "• " to the children
+            // otherwise, prepend "{num}. " to the children
+            // append \n in the end
+            let children = children
+                .iter()
+                .enumerate()
+                .map(|(i, item)| {
+                    let mut str_prefix: StringWithEntities = if list.ordered {
+                        format!("{}. ", list.start.unwrap_or(1) + i as u32).into()
+                    } else {
+                        "• ".into()
+                    };
+
+                    str_prefix.join(item);
+                    str_prefix.join(&"\n".into());
+                    str_prefix
+                })
+                .collect::<Vec<StringWithEntities>>();
+
+            StringWithEntities::join_strings(children)
+        }
+
+        Node::Link(link) => {
+            let string = nodes_to_entities(link.children.clone());
+
+            let entity = MessageEntity::text_link(
+                reqwest::Url::parse(&link.url).expect("Failed to parse link's URL"),
+                0,
+                string.0.len(),
+            );
+            let entities = [entity].into_iter().chain(string.1).collect();
+
+            StringWithEntities(string.0.clone(), entities)
+        }
+
         _ => StringWithEntities(
             format!("unknown node {node:?}").encode_utf16().collect(),
             vec![],
@@ -120,24 +175,63 @@ mod tests {
     fn leaves_newlines_as_is() {
         let string = "hello\nworld";
 
-        assert_eq!(
-            to_string_with_entities(string),
-            StringWithEntities("hello\nworld".encode_utf16().collect(), vec![])
-        );
+        assert_eq!(to_string_with_entities(string), string.into());
     }
 
     #[test]
     fn parses_code_correctly() {
-        let string = "```rs
-println!(\"hello, world!\");
-```";
+        let string = r#"```rs
+println!("hello, world!");
+```"#;
 
         assert_eq!(
             to_string_with_entities(string),
             StringWithEntities(
-                "println!(\"hello, world!\");".encode_utf16().collect(),
+                r#"println!("hello, world!");"#.encode_utf16().collect(),
                 vec![MessageEntity::pre(Some("rs".to_owned()), 0, 26)]
             )
+        );
+    }
+
+    #[test]
+    fn parses_unordered_lists_correctly() {
+        let string = r#"- hello
+- there"#;
+
+        assert_eq!(
+            to_string_with_entities(string),
+            StringWithEntities(
+                "\u{2022} hello\n\u{2022} there\n".encode_utf16().collect(),
+                vec![]
+            ),
+        );
+    }
+
+    #[test]
+    fn parses_ordered_lists_correctly() {
+        let string = r#"1. hello
+2. there"#;
+
+        assert_eq!(
+            to_string_with_entities(string),
+            StringWithEntities("1. hello\n2. there\n".encode_utf16().collect(), vec![]),
+        );
+    }
+
+    #[test]
+    fn parses_links_correctly() {
+        let string = r#"[hello there](https://itsvic.dev)"#;
+
+        assert_eq!(
+            to_string_with_entities(string),
+            StringWithEntities(
+                "hello there".encode_utf16().collect(),
+                vec![MessageEntity::text_link(
+                    reqwest::Url::parse("https://itsvic.dev").unwrap(),
+                    0,
+                    11
+                )]
+            ),
         );
     }
 }
