@@ -43,7 +43,7 @@ pub async fn to_core_message(
 
 pub fn to_core_author(author: &User) -> Result<core::Author> {
     Ok(core::Author {
-        username: author.name.clone(),
+        username: format!("dc/{}", &author.name),
         display_name: author.global_name.clone(),
         avatar: None, // no need to care rn, tg doesn't need it
     })

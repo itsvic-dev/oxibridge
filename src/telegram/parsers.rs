@@ -342,7 +342,10 @@ async fn to_core_author(bot: Bot, author: &types::User) -> color_eyre::Result<co
 
     Ok(core::Author {
         display_name: Some(author.full_name()),
-        username: author.username.clone().unwrap_or("Unknown".to_string()),
+        username: match &author.username {
+            Some(username) => format!("tg/{}", &username),
+            None => format!("tg/id{}", author.id.0),
+        },
         avatar: core_file,
     })
 }

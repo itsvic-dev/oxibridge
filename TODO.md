@@ -33,9 +33,9 @@ features that need to be worked on:
 
   - [ ] reactions (edits)
   - [x] message replies
-  - [ ] cleaner mentions
+  - [x] cleaner mentions
     - [x] discord
-    - [ ] telegram
+    - [x] telegram (partial, im lazy)
   - [ ] proper cross-platform mentions
     - [ ] discord
     - [ ] telegram
