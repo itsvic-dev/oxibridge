@@ -18,7 +18,9 @@ in
 
   config = mkIf cfg.enable {
     systemd.services.oxibridge = {
-      wantedBy = [ "network-online.target" ];
+      after = [ "network.target" "network-online.target" ];
+      wants = [ "network-online.target" ];
+      wantedBy = [ "multi-user.target" ];
 
       serviceConfig = {
         ExecStart = getExe oxibridge;
