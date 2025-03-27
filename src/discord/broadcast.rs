@@ -4,7 +4,7 @@ use crate::{
 };
 use color_eyre::{eyre::eyre, Result};
 use serenity::{
-    all::{CreateAttachment, EditWebhookMessage, ExecuteWebhook, Webhook},
+    all::{CreateAllowedMentions, CreateAttachment, EditWebhookMessage, ExecuteWebhook, Webhook},
     async_trait,
 };
 use tracing::*;
@@ -57,7 +57,8 @@ impl BroadcastReceiver for DiscordBridge {
 
                 let builder = ExecuteWebhook::new()
                     .content(header.clone() + &core_msg.content)
-                    .username(core_msg.author.full_name());
+                    .username(core_msg.author.full_name())
+                    .allowed_mentions(CreateAllowedMentions::new().all_users(true));
 
                 let builder = match &self.storage {
                     Some(storage) => match &core_msg.author.avatar {
