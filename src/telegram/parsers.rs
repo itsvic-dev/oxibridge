@@ -9,6 +9,8 @@ use teloxide::{
 };
 use tracing::*;
 
+use super::unparse::unparse_entities;
+
 pub fn serialize_die_value(die: Dice) -> String {
     match die.emoji {
         types::DiceEmoji::Dice => match die.value {
@@ -146,12 +148,15 @@ pub async fn to_core_message(
 
     let (content, attachments) = match &m.kind {
         MessageKind::Common(common) => match &common.media_kind {
-            MediaKind::Text(text) => (text.text.to_owned(), vec![]),
+            // MediaKind::Text(text) => (text.text.to_owned(), vec![]),
+            MediaKind::Text(text) => (unparse_entities(&text.text, text.entities.clone()), vec![]),
 
             MediaKind::Photo(photo) => {
                 let attachment = photo_to_core_file(bot.clone(), &photo.photo).await?;
                 (
-                    photo.caption.clone().unwrap_or("".to_owned()),
+                    unparse_entities(
+                        &photo.caption.clone().unwrap_or("".to_string()), photo.caption_entities.clone()
+                    ),
                     vec![core::Attachment {
                         file: attachment,
                         spoilered: photo.has_media_spoiler,
@@ -164,7 +169,9 @@ pub async fn to_core_message(
                 let file = bot.get_file(&video.video.file.id).await?;
                 let attachment = to_core_file(bot.clone(), &file).await?;
                 (
-                    video.caption.clone().unwrap_or("".to_owned()),
+                    unparse_entities(
+                        &video.caption.clone().unwrap_or("".to_string()), video.caption_entities.clone()
+                    ),
                     vec![core::Attachment {
                         file: attachment,
                         spoilered: video.has_media_spoiler,
@@ -177,7 +184,9 @@ pub async fn to_core_message(
                 let file = bot.get_file(&animation.animation.file.id).await?;
                 let attachment = to_core_file(bot.clone(), &file).await?;
                 (
-                    animation.caption.clone().unwrap_or("".to_owned()),
+                    unparse_entities(
+                        &animation.caption.clone().unwrap_or("".to_string()), animation.caption_entities.clone()
+                    ),
                     vec![core::Attachment {
                         file: attachment,
                         spoilered: animation.has_media_spoiler,
@@ -191,7 +200,9 @@ pub async fn to_core_message(
                 let file = bot.get_file(&document.document.file.id).await?;
                 let attachment = to_core_file(bot.clone(), &file).await?;
                 (
-                    document.caption.clone().unwrap_or("".to_owned()),
+                    unparse_entities(
+                        &document.caption.clone().unwrap_or("".to_string()), document.caption_entities.clone()
+                    ),
                     vec![core::Attachment {
                         file: attachment,
                         spoilered: false,

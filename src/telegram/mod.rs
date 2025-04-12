@@ -9,6 +9,7 @@ mod broadcast;
 mod entities;
 mod events;
 mod parsers;
+mod unparse;
 use self::events::*;
 use self::parsers::*;
 

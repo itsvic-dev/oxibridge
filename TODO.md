@@ -20,7 +20,7 @@ features that need to be worked on:
 
   - [x] messages
     - [x] MD to entities
-    - [ ] entities to MD (for broadcasting)
+    - [x] entities to MD (for broadcasting)
   - [x] attachments
     - [x] broadcast receiver
     - [x] broadcaster
