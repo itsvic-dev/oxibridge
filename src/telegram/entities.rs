@@ -2,7 +2,9 @@ use markdown::{
     mdast::{self, Node},
     ParseOptions,
 };
+use regex::Regex;
 use teloxide::types::{MessageEntity, MessageEntityKind};
+use tracing::debug;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct StringWithEntities(pub Vec<u16>, pub Vec<MessageEntity>);
@@ -141,13 +143,20 @@ fn node_to_entities(node: &Node) -> StringWithEntities {
         Node::Link(link) => {
             let string = nodes_to_entities(link.children.clone());
 
-            let entity = MessageEntity::text_link(
-                reqwest::Url::parse(&link.url).expect("Failed to parse link's URL"),
-                0,
-                string.0.len(),
-            );
-            let entities = [entity].into_iter().chain(string.1).collect();
+            let entity = match link.url.as_str() {
+                "x-oxibridge:spoiler" => MessageEntity::spoiler(
+                    0,
+                    string.0.len(),
+                ),
+                _ => MessageEntity::text_link(
+                    reqwest::Url::parse(&link.url).expect("Failed to parse link's URL"),
+                    0,
+                    string.0.len(),
+                ),
+            };
 
+            let entities = [entity].into_iter().chain(string.1).collect();
+        
             StringWithEntities(string.0.clone(), entities)
         }
 
@@ -170,7 +179,19 @@ fn node_to_entities(node: &Node) -> StringWithEntities {
 }
 
 pub fn to_string_with_entities(value: &str) -> StringWithEntities {
-    let node = markdown::to_mdast(value, &ParseOptions::default()).unwrap();
+    // not perfect, but Rust's regex engine doesn't support look-arounds so :/
+    let re = Regex::new(r"\|\|(.*)\|\|");
+    let parsed_value = match re {
+        Ok(re) => {
+            re.replace(value, "[$1](x-oxibridge:spoiler)").into_owned()
+        }
+        Err(e) => {
+            debug!("regex creation failed: {e}");
+            value.to_owned()
+        }
+    };
+
+    let node = markdown::to_mdast(&parsed_value, &ParseOptions::default()).unwrap();
     node_to_entities(&node)
 }
 
