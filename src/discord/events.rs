@@ -93,7 +93,7 @@ impl EventHandler for BotEventHandler {
     ) {
         if event
             .author
-            .map_or(false, |author| author.bot || author.system)
+            .is_some_and(|author| author.bot || author.system)
         {
             return;
         }

@@ -2,7 +2,7 @@ use markdown::{
     mdast::{self, Node},
     ParseOptions,
 };
-use teloxide::types::MessageEntity;
+use teloxide::types::{MessageEntity, MessageEntityKind};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct StringWithEntities(pub Vec<u16>, pub Vec<MessageEntity>);
@@ -57,8 +57,14 @@ fn nodes_to_entities(nodes: Vec<Node>) -> StringWithEntities {
 fn node_to_entities(node: &Node) -> StringWithEntities {
     match node {
         Node::Root(mdast::Root { children, .. })
-        | Node::Paragraph(mdast::Paragraph { children, .. })
         | Node::ListItem(mdast::ListItem { children, .. }) => nodes_to_entities(children.clone()),
+
+        Node::Paragraph(mdast::Paragraph { children, .. }) => {
+            let mut string = nodes_to_entities(children.clone());
+            string.0.push('\n' as u16);
+            string.0.push('\n' as u16);
+            string
+        }
 
         Node::Text(text) => text.value.clone().into(),
 
@@ -144,6 +150,17 @@ fn node_to_entities(node: &Node) -> StringWithEntities {
 
             StringWithEntities(string.0.clone(), entities)
         }
+
+        Node::Blockquote(quote) => {
+            let string = nodes_to_entities(quote.children.clone());
+            // there is no helper function for blockquotes
+            let entity = MessageEntity { kind: MessageEntityKind::Blockquote, offset: 0, length: string.0.len() };
+            let entities = [entity].into_iter().chain(string.1).collect();
+
+            StringWithEntities(string.0.clone(), entities)
+        }
+
+        Node::Break(_) => "\n".into(),
 
         _ => StringWithEntities(
             format!("unknown node {node:#?}").encode_utf16().collect(),
