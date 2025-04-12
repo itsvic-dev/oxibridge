@@ -64,7 +64,6 @@ fn node_to_entities(node: &Node) -> StringWithEntities {
         Node::Paragraph(mdast::Paragraph { children, .. }) => {
             let mut string = nodes_to_entities(children.clone());
             string.0.push('\n' as u16);
-            string.0.push('\n' as u16);
             string
         }
 
@@ -206,7 +205,7 @@ mod tests {
         assert_eq!(
             to_string_with_entities(string),
             StringWithEntities(
-                "hello, world!".encode_utf16().collect(),
+                "hello, world!\n".encode_utf16().collect(),
                 vec![MessageEntity::italic(7, 5), MessageEntity::bold(7, 5)]
             )
         );
@@ -216,7 +215,7 @@ mod tests {
     fn leaves_newlines_as_is() {
         let string = "hello\nworld";
 
-        assert_eq!(to_string_with_entities(string), string.into());
+        assert_eq!(to_string_with_entities(string), (string.to_owned() + "\n").into());
     }
 
     #[test]
@@ -242,7 +241,7 @@ println!("hello, world!");
         assert_eq!(
             to_string_with_entities(string),
             StringWithEntities(
-                "\u{2022} hello\n\u{2022} there\n".encode_utf16().collect(),
+                "\u{2022} hello\n\n\u{2022} there\n\n".encode_utf16().collect(),
                 vec![]
             ),
         );
@@ -255,7 +254,7 @@ println!("hello, world!");
 
         assert_eq!(
             to_string_with_entities(string),
-            StringWithEntities("1. hello\n2. there\n".encode_utf16().collect(), vec![]),
+            StringWithEntities("1. hello\n\n2. there\n\n".encode_utf16().collect(), vec![]),
         );
     }
 
@@ -266,7 +265,7 @@ println!("hello, world!");
         assert_eq!(
             to_string_with_entities(string),
             StringWithEntities(
-                "hello there".encode_utf16().collect(),
+                "hello there\n".encode_utf16().collect(),
                 vec![MessageEntity::text_link(
                     reqwest::Url::parse("https://itsvic.dev").unwrap(),
                     0,
