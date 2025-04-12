@@ -186,17 +186,31 @@ pub async fn to_core_message(
                 )
             }
 
+            // plain files
+            MediaKind::Document(document) => {
+                let file = bot.get_file(&document.document.file.id).await?;
+                let attachment = to_core_file(bot.clone(), &file).await?;
+                (
+                    document.caption.clone().unwrap_or("".to_owned()),
+                    vec![core::Attachment {
+                        file: attachment,
+                        spoilered: false,
+                        filename: String::new(),
+                    }],
+                )
+            }
+
             MediaKind::Sticker(sticker) => {
                 let sticker = &sticker.sticker;
-                match (sticker.flags.is_animated, sticker.flags.is_video) {
-                    (false, false) => {
-                        // raster sticker
+                match sticker.flags.is_animated {
+                    false => {
+                        // raster or video sticker
                         let file = bot.get_file(&sticker.file.id).await?;
                         let attachment = to_core_file(bot.clone(), &file).await?;
                         let set_name = match sticker.set_name.clone() {
                             Some(slug) => {
                                 let set = bot.get_sticker_set(&slug).await?;
-                                // technically discord sugar, but its fine
+                                // technically discord sugar, but its fine for now
                                 format!("[{}](<https://t.me/addstickers/{}>)", &set.title, &slug)
                             }
                             None => "Unknown set".to_owned(),
@@ -214,7 +228,7 @@ pub async fn to_core_message(
                             }],
                         )
                     }
-                    _ => ("[Animated or video sticker]".to_owned(), vec![]),
+                    true => ("[Animated sticker]".to_owned(), vec![]),
                 }
             }
 
