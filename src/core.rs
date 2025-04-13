@@ -1,4 +1,4 @@
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use async_tempfile::TempFile;
 use tokio::sync::Mutex;
@@ -30,21 +30,24 @@ impl Author {
 
 #[derive(Debug)]
 pub struct Message {
-    pub author: Author,
+    pub author: Arc<Author>,
     pub content: String,
     pub attachments: Vec<Attachment>,
     pub id: u64,
     pub in_reply_to: Option<u64>,
+    // FIXME: replace Arc<Author> with PartialAuthor
+    pub reply_author: Option<Arc<Author>>,
 }
 
 static NEXT_ID: LazyLock<Mutex<u64>> = LazyLock::new(|| Mutex::new(0));
 
 impl Message {
     pub async fn new(
-        author: Author,
+        author: Arc<Author>,
         content: String,
         attachments: Vec<Attachment>,
         in_reply_to: Option<u64>,
+        reply_author: Option<Arc<Author>>,
     ) -> Self {
         let mut next_id = NEXT_ID.lock().await;
         let id = *next_id;
@@ -56,6 +59,7 @@ impl Message {
             content,
             attachments,
             in_reply_to,
+            reply_author,
         }
     }
 }

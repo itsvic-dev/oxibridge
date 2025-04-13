@@ -1,6 +1,6 @@
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
-use crate::core;
+use crate::core::{self, Author};
 use async_tempfile::TempFile;
 use teloxide::{
     net::Download,
@@ -139,6 +139,7 @@ pub async fn to_core_message(
     bot: Bot,
     m: &Message,
     in_reply_to: Option<u64>,
+    reply_author: Option<Arc<Author>>,
 ) -> color_eyre::Result<core::Message> {
     let tg_author = match m.from.as_ref() {
         Some(author) => author,
@@ -349,7 +350,7 @@ pub async fn to_core_message(
 
     let content = [forwarded_header, content].join("\n").trim().to_owned();
 
-    Ok(core::Message::new(core_author, content, attachments, in_reply_to).await)
+    Ok(core::Message::new(Arc::new(core_author), content, attachments, in_reply_to, reply_author).await)
 }
 
 #[instrument(skip(bot))]

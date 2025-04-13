@@ -1,6 +1,6 @@
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
-use crate::core;
+use crate::core::{self, Author};
 use async_tempfile::TempFile;
 use color_eyre::eyre::Result;
 use regex::Regex;
@@ -15,10 +15,11 @@ static MENTION_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<@([0-9]+)>")
 pub async fn to_core_message(
     message: &Message,
     in_reply_to: Option<u64>,
+    reply_author: Option<Arc<Author>>,
     http: &Http,
 ) -> Result<core::Message> {
     let dsc_author = &message.author;
-    let core_author = to_core_author(dsc_author)?;
+    let core_author = Arc::new(to_core_author(dsc_author)?);
 
     let mut attachments: Vec<core::Attachment> = Vec::new();
 
@@ -38,7 +39,7 @@ pub async fn to_core_message(
         content = content.replace(&format!("<@{id}>"), &format!("@dc/{}", user.name));
     }
 
-    Ok(core::Message::new(core_author, content, attachments, in_reply_to).await)
+    Ok(core::Message::new(core_author, content, attachments, in_reply_to, reply_author).await)
 }
 
 pub fn to_core_author(author: &User) -> Result<core::Author> {

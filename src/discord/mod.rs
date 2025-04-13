@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{broadcast::Broadcaster, storage::R2Storage, Config};
+use crate::{broadcast::Broadcaster, core::Author, storage::R2Storage, Config};
 use color_eyre::Result;
 use serenity::{
     all::{Http, MessageId},
@@ -26,8 +26,8 @@ pub struct DiscordBridge {
 
 #[derive(Debug)]
 struct DscCache {
-    /// Cache of Discord IDs to core message IDs.
-    dsc_core_cache: HashMap<MessageId, u64>,
+    /// Cache of Discord IDs to (core message IDs, core authors).
+    dsc_core_cache: HashMap<MessageId, (u64, Arc<Author>)>,
 
     /// Cache of core message IDs to (Discord IDs, message headers).
     core_dsc_cache: HashMap<u64, (MessageId, String)>,

@@ -3,6 +3,7 @@ use teloxide::{prelude::*, types::MessageId};
 use tokio::sync::Mutex;
 use tracing::*;
 
+use crate::core::Author;
 use crate::{broadcast::Broadcaster, Config};
 
 mod broadcast;
@@ -24,8 +25,8 @@ pub struct TelegramBridge {
 
 #[derive(Debug)]
 struct TgCache {
-    /// Cache of Telegram IDs to core message IDs.
-    tg_core_cache: HashMap<MessageId, u64>,
+    /// Cache of Telegram IDs to (core message IDs, core authors).
+    tg_core_cache: HashMap<MessageId, (u64, Arc<Author>)>,
 
     /// Cache of core message IDs to (Telegram IDs, author names).
     core_tg_cache: HashMap<u64, (MessageId, String)>,

@@ -37,22 +37,28 @@ impl EventHandler for BotEventHandler {
         };
 
         // if the message has a reply reference, grab its core ID if possible
-        let reply_id = match &msg.message_reference {
+        let cached_reply = match &msg.message_reference {
             Some(reference) => match reference.kind {
                 MessageReferenceKind::Default => {
                     let cache = self.cache.lock().await;
                     reference
                         .message_id
-                        .and_then(|id| cache.dsc_core_cache.get(&id).copied())
+                        .and_then(|id| cache.dsc_core_cache.get(&id).cloned())
                 }
                 _ => None,
             },
             None => None,
         };
 
-        debug!(?reply_id, "handling message");
+        debug!(?cached_reply, "handling message");
 
-        let core_msg = match to_core_message(&msg, reply_id, &self.http).await {
+        // split the Option<tuple> into separate Options
+        let (reply_id, reply_author) = match cached_reply {
+            Some((id, author)) => (Some(id), Some(author)),
+            None => (None, None),
+        };
+
+        let core_msg = match to_core_message(&msg, reply_id, reply_author, &self.http).await {
             Ok(core_msg) => core_msg,
             Err(why) => {
                 error!(?why, "Failed to parse into core message");
@@ -64,7 +70,7 @@ impl EventHandler for BotEventHandler {
 
         {
             let mut cache = self.cache.lock().await;
-            cache.dsc_core_cache.insert(msg.id, core_msg.id);
+            cache.dsc_core_cache.insert(msg.id, (core_msg.id, core_msg.author.clone()));
             cache
                 .core_dsc_cache
                 .insert(core_msg.id, (msg.id, String::new()));
@@ -113,7 +119,7 @@ impl EventHandler for BotEventHandler {
         };
 
         let core_id = match self.cache.lock().await.dsc_core_cache.get(&event.id) {
-            Some(id) => *id,
+            Some(id) => id.0,
             None => {
                 error!("Could not find edited message in local cache");
                 return;
@@ -157,7 +163,7 @@ impl EventHandler for BotEventHandler {
         };
 
         let core_id = match self.cache.lock().await.dsc_core_cache.get(&deleted_id) {
-            Some(id) => *id,
+            Some(id) => id.0,
             None => return,
         };
 

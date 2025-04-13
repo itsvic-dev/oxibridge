@@ -98,7 +98,7 @@ impl BroadcastReceiver for DiscordBridge {
 
                 if let Some(msg) = msg {
                     let mut cache = self.cache.lock().await;
-                    cache.dsc_core_cache.insert(msg.id, core_msg.id);
+                    cache.dsc_core_cache.insert(msg.id, (core_msg.id, core_msg.author.clone()));
                     cache.core_dsc_cache.insert(core_msg.id, (msg.id, header));
                 };
             }

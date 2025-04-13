@@ -36,16 +36,22 @@ pub async fn message_handle(
     };
 
     // look up reply in cache
-    let core_reply = match message.reply_to_message() {
-        Some(msg) => cache.lock().await.tg_core_cache.get(&msg.id).copied(),
+    let cached_reply = match message.reply_to_message() {
+        Some(msg) => cache.lock().await.tg_core_cache.get(&msg.id).cloned(),
         None => None,
     };
 
-    let core_message = to_core_message(bot, &message, core_reply).await?;
+    // split the Option<tuple> into separate Options
+    let (reply_id, reply_author) = match cached_reply {
+        Some((id, author)) => (Some(id), Some(author)),
+        None => (None, None),
+    };
+
+    let core_message = to_core_message(bot, &message, reply_id, reply_author).await?;
 
     {
         let mut cache = cache.lock().await;
-        cache.tg_core_cache.insert(message.id, core_message.id);
+        cache.tg_core_cache.insert(message.id, (core_message.id, core_message.author.clone()));
         cache
             .core_tg_cache
             .insert(core_message.id, (message.id, String::new()));
@@ -84,7 +90,7 @@ pub async fn message_edit_handle(
 
     // get tg->core id
     let core_id = match cache.lock().await.tg_core_cache.get(&message.id) {
-        Some(id) => *id,
+        Some(id) => id.0,
         None => return Err(eyre!("failed to get core ID from {:?}", message.id)),
     };
 
