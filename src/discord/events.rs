@@ -70,7 +70,7 @@ impl EventHandler for BotEventHandler {
 
         {
             let mut cache = self.cache.lock().await;
-            cache.dsc_core_cache.insert(msg.id, (core_msg.id, core_msg.author.clone()));
+            cache.dsc_core_cache.insert(msg.id, (core_msg.id, (&core_msg.author).into()));
             cache
                 .core_dsc_cache
                 .insert(core_msg.id, (msg.id, String::new()));

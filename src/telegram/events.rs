@@ -51,7 +51,7 @@ pub async fn message_handle(
 
     {
         let mut cache = cache.lock().await;
-        cache.tg_core_cache.insert(message.id, (core_message.id, core_message.author.clone()));
+        cache.tg_core_cache.insert(message.id, (core_message.id, (&core_message.author).into()));
         cache
             .core_tg_cache
             .insert(core_message.id, (message.id, String::new()));

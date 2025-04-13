@@ -128,7 +128,7 @@ impl BroadcastReceiver for TelegramBridge {
                     cache
                         .core_tg_cache
                         .insert(core_msg.id, (msg.id, core_msg.author.full_name(Some(0)).clone()));
-                    cache.tg_core_cache.insert(msg.id, (core_msg.id, core_msg.author.clone()));
+                    cache.tg_core_cache.insert(msg.id, (core_msg.id, (&core_msg.author).into()));
                 };
             }
 

@@ -5,7 +5,7 @@ use color_eyre::Result;
 use serenity::async_trait;
 use tracing::*;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Source {
     Discord,
     Telegram,

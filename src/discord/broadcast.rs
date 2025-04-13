@@ -1,6 +1,6 @@
 use crate::{
     broadcast::{BroadcastReceiver, MessageEvent, Source},
-    config::GroupConfig,
+    config::GroupConfig, core::Author,
 };
 use color_eyre::{eyre::eyre, Result};
 use serenity::{
@@ -46,7 +46,10 @@ impl BroadcastReceiver for DiscordBridge {
                 let mention = match &core_msg.reply_author {
                     Some(author) => match author.source {
                         Source::Discord => reply_msg.as_ref().map(|msg| format!("<@{}>", msg.author.id.get())),
-                        _ => Some(format!("**{}**", author.full_name(Some(0)))),
+                        _ => {
+                            let full_author: Author = author.clone().into();
+                            Some(format!("**{}**", full_author.full_name(Some(0))))
+                        },
                     },
                     None => None,
                 };
@@ -107,7 +110,7 @@ impl BroadcastReceiver for DiscordBridge {
 
                 if let Some(msg) = msg {
                     let mut cache = self.cache.lock().await;
-                    cache.dsc_core_cache.insert(msg.id, (core_msg.id, core_msg.author.clone()));
+                    cache.dsc_core_cache.insert(msg.id, (core_msg.id, (&core_msg.author).into()));
                     cache.core_dsc_cache.insert(core_msg.id, (msg.id, header));
                 };
             }
