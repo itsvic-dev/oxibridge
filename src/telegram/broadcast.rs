@@ -28,7 +28,7 @@ impl BroadcastReceiver for TelegramBridge {
             MessageEvent::Create(core_msg) => {
                 let text = format!(
                     "**{}**\n{}",
-                    &core_msg.author.full_name(),
+                    &core_msg.author.full_name(Some(0)),
                     &core_msg.content
                 );
 
@@ -127,7 +127,7 @@ impl BroadcastReceiver for TelegramBridge {
                     let mut cache = self.cache.lock().await;
                     cache
                         .core_tg_cache
-                        .insert(core_msg.id, (msg.id, core_msg.author.full_name().clone()));
+                        .insert(core_msg.id, (msg.id, core_msg.author.full_name(Some(0)).clone()));
                     cache.tg_core_cache.insert(msg.id, core_msg.id);
                 };
             }

@@ -57,7 +57,7 @@ impl BroadcastReceiver for DiscordBridge {
 
                 let builder = ExecuteWebhook::new()
                     .content(header.clone() + &core_msg.content)
-                    .username(core_msg.author.full_name())
+                    .username(core_msg.author.full_name(None))
                     .allowed_mentions(CreateAllowedMentions::new().all_users(true));
 
                 let builder = match &self.storage {

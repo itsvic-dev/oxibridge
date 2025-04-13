@@ -254,7 +254,7 @@ pub async fn to_core_message(
                 // dice.emoji implements serde::Serialize, so we can just use it
                 let value = serialize_die_value(die.dice.clone());
 
-                format!("_{} rolled a die!_\n{}", core_author.full_name(), value)
+                format!("_{} rolled a die!_\n{}", core_author.full_name(Some(0)), value)
             },
             vec![],
         ),
@@ -280,7 +280,7 @@ pub async fn to_core_message(
         MessageKind::Pinned(pinned) => (
             format!(
                 "_{} pinned a message:_\n{}",
-                core_author.full_name(),
+                core_author.full_name(Some(0)),
                 pinned
                     .pinned
                     .as_ref()

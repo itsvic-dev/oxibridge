@@ -11,10 +11,13 @@ pub struct Author {
 }
 
 impl Author {
-    pub fn full_name(&self) -> String {
+    pub fn full_name(&self, length: Option<usize>) -> String {
+        let length = length.unwrap_or(32);
+
         if let Some(display_name) = &self.display_name {
             let full_name = format!("{} ({})", display_name, self.username);
-            if full_name.len() > 32 {
+
+            if length != 0 && full_name.len() > length {
                 display_name.clone()
             } else {
                 full_name
