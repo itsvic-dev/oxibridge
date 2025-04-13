@@ -42,11 +42,20 @@ impl BroadcastReceiver for DiscordBridge {
                     None => None,
                 };
 
+                // construct either a mention or a plain string
+                let mention = match &core_msg.reply_author {
+                    Some(author) => match author.source {
+                        Source::Discord => reply_msg.as_ref().map(|msg| format!("<@{}>", msg.author.id.get())),
+                        _ => Some(format!("**{}**", author.full_name(Some(0)))),
+                    },
+                    None => None,
+                };
+
                 let header = match reply_msg {
                     Some(msg) => {
                         format!(
-                            "*In reply to <@{}> (https://discord.com/channels/{}/{}/{})*\n",
-                            msg.author.id.get(),
+                            "*In reply to {} (https://discord.com/channels/{}/{}/{})*\n",
+                            mention.unwrap_or("???".to_owned()),
                             msg.guild_id.unwrap_or_default(),
                             group.discord_channel,
                             msg.id.get(),
