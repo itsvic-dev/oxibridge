@@ -15,6 +15,8 @@ features that need to be worked on:
   - [x] message deletes
     - [ ] broadcast receiver
     - [x] broadcaster
+  - [ ] stickers
+  - [ ] forwarded msgs
 
 - telegram
 
