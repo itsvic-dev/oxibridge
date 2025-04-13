@@ -3,19 +3,27 @@ use std::sync::{Arc, LazyLock};
 use async_tempfile::TempFile;
 use tokio::sync::Mutex;
 
+use crate::broadcast::Source;
+
 #[derive(Debug)]
 pub struct Author {
     pub display_name: Option<String>,
     pub username: String,
     pub avatar: Option<TempFile>,
+    pub source: Source,
 }
 
 impl Author {
     pub fn full_name(&self, length: Option<usize>) -> String {
         let length = length.unwrap_or(32);
 
+        let source: &str= match self.source {
+            Source::Discord => "dc",
+            Source::Telegram => "tg",
+        };
+
         if let Some(display_name) = &self.display_name {
-            let full_name = format!("{} ({})", display_name, self.username);
+            let full_name = format!("{} (@{}/{})", display_name, source, self.username);
 
             if length != 0 && full_name.len() > length {
                 display_name.clone()

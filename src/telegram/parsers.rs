@@ -1,6 +1,6 @@
 use std::{path::Path, sync::Arc};
 
-use crate::core::{self, Author};
+use crate::{broadcast::Source, core::{self, Author}};
 use async_tempfile::TempFile;
 use teloxide::{
     net::Download,
@@ -369,10 +369,11 @@ async fn to_core_author(bot: Bot, author: &types::User) -> color_eyre::Result<co
     Ok(core::Author {
         display_name: Some(author.full_name()),
         username: match &author.username {
-            Some(username) => format!("tg/{}", &username),
-            None => format!("tg/id{}", author.id.0),
+            Some(username) => username.clone(),
+            None => format!("id{}", author.id.0),
         },
         avatar: core_file,
+        source: Source::Telegram,
     })
 }
 

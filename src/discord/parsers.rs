@@ -1,6 +1,6 @@
 use std::sync::{Arc, LazyLock};
 
-use crate::core::{self, Author};
+use crate::{broadcast::Source, core::{self, Author}};
 use async_tempfile::TempFile;
 use color_eyre::eyre::Result;
 use regex::Regex;
@@ -44,9 +44,10 @@ pub async fn to_core_message(
 
 pub fn to_core_author(author: &User) -> Result<core::Author> {
     Ok(core::Author {
-        username: format!("dc/{}", &author.name),
+        username: author.name.to_owned(),
         display_name: author.global_name.clone(),
         avatar: None, // no need to care rn, tg doesn't need it
+        source: Source::Discord,
     })
 }
 
