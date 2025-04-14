@@ -26,7 +26,7 @@ pub async fn refresh_cdn_links(http: &Http, links: &[&str]) -> Result<Vec<Refres
 
   let client = reqwest::Client::new();
   let res = client.post("https://discord.com/api/v9/attachments/refresh-urls")
-    .header("Authorization", format!("Bot {}", http.token()))
+    .header("Authorization", http.token())
     .header("Content-Type", "application/json")
     .json(&request)
     .send()
