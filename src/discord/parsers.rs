@@ -1,6 +1,6 @@
 use std::sync::LazyLock;
 
-use crate::{broadcast::Source, core::{self, PartialAuthor}};
+use crate::{broadcast::Source, core::{self, PartialAuthor}, discord::refresh::refresh_cdn_links};
 use async_tempfile::TempFile;
 use color_eyre::eyre::Result;
 use regex::Regex;
@@ -9,8 +9,10 @@ use serenity::{
     futures::StreamExt,
 };
 use tokio::io::AsyncWriteExt;
+use tracing::debug;
 
 static MENTION_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<@([0-9]+)>").unwrap());
+static CDN_LINK_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"https://(?:cdn\.discordapp\.com|media\.discordapp\.net)/attachments/\d+/\d+/[a-zA-Z.%0-9]+(?:\?[\w=\d&]+)?").unwrap());
 
 pub async fn to_core_message(
     message: &Message,
@@ -39,6 +41,8 @@ pub async fn to_core_message(
         content = content.replace(&format!("<@{id}>"), &format!("@dc/{}", user.name));
     }
 
+    content = get_content_with_refreshed_links(http, &content).await?;
+
     Ok(core::Message::new(core_author, content, attachments, in_reply_to, reply_author).await)
 }
 
@@ -66,4 +70,17 @@ pub async fn to_core_attachment(attachment: &Attachment) -> Result<core::Attachm
         spoilered: attachment.filename.starts_with("SPOILER_"),
         filename: attachment.filename.clone(),
     })
+}
+
+async fn get_content_with_refreshed_links(http: &Http, content: &str) -> Result<String> {
+    let links: Vec<&str> = CDN_LINK_RE.find_iter(content).map(|x| x.as_str()).collect();
+    debug!(?links, "got links");
+
+    let mut content = content.to_string();
+
+    if !links.is_empty() {
+        refresh_cdn_links(http, &links).await?.iter().for_each(|x| { content = content.replace(&x.original, &x.refreshed); });
+    }
+
+    Ok(content)
 }

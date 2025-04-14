@@ -1,7 +1,6 @@
 use serenity::{
     all::{
-        ChannelId, Context, EventHandler, GuildId, Message, MessageId, MessageReferenceKind,
-        MessageUpdateEvent,
+        ChannelId, Context, EventHandler, GuildId, Message, MessageId, MessageReferenceKind, MessageUpdateEvent
     },
     async_trait,
 };

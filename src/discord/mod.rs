@@ -11,6 +11,7 @@ use tracing::*;
 mod broadcast;
 mod events;
 mod parsers;
+mod refresh;
 
 pub struct DiscordBridge {
     storage: Option<Arc<Mutex<R2Storage>>>,
