@@ -15,7 +15,7 @@ pub struct RefreshedUrl {
 
 #[derive(Serialize, Deserialize)]
 struct RefreshUrlsResponse {
-  attachment_urls: Vec<RefreshedUrl>,
+  refreshed_urls: Vec<RefreshedUrl>,
 }
 
 // manually fetch refreshed CDN links with reqwest
@@ -34,5 +34,5 @@ pub async fn refresh_cdn_links(http: &Http, links: &[&str]) -> Result<Vec<Refres
 
   let body: RefreshUrlsResponse = res.json().await?;
 
-  Ok(body.attachment_urls)
+  Ok(body.refreshed_urls)
 }
