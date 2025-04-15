@@ -9,10 +9,9 @@ use serenity::{
     futures::StreamExt,
 };
 use tokio::io::AsyncWriteExt;
-use tracing::debug;
 
 static MENTION_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<@([0-9]+)>").unwrap());
-static CDN_LINK_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"https://(?:cdn\.discordapp\.com|media\.discordapp\.net)/attachments/\d+/\d+/[a-zA-Z.%0-9]+(?:\?[\w=\d&]+)?").unwrap());
+static CDN_LINK_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"https://(?:cdn\.discordapp\.com|media\.discordapp\.net)/attachments/\d+/\d+/[a-zA-Z0-9.%_\-]+(?:\?[\w\d=&]+)?").unwrap());
 
 pub async fn to_core_message(
     message: &Message,
@@ -29,20 +28,7 @@ pub async fn to_core_message(
         attachments.push(to_core_attachment(attachment).await?);
     }
 
-    let mut content = message.content.clone();
-
-    // find and turn mentions into "@dc/username" format
-    for (_, [id_str]) in MENTION_RE
-        .captures_iter(&message.content)
-        .map(|c| c.extract())
-    {
-        let id = id_str.parse::<u64>()?;
-        let user = http.get_user(id.into()).await?;
-        content = content.replace(&format!("<@{id}>"), &format!("@dc/{}", user.name));
-    }
-
-    content = get_content_with_refreshed_links(http, &content).await?;
-
+    let content = parse_content(&message.content, http).await?;
     Ok(core::Message::new(core_author, content, attachments, in_reply_to, reply_author).await)
 }
 
@@ -72,9 +58,26 @@ pub async fn to_core_attachment(attachment: &Attachment) -> Result<core::Attachm
     })
 }
 
+pub async fn parse_content(content: &str, http: &Http) -> Result<String> {
+    let mut new_content = content.to_string();
+
+    // find and turn mentions into "@dc/username" format
+    for (_, [id_str]) in MENTION_RE
+        .captures_iter(content)
+        .map(|c| c.extract())
+    {
+        let id = id_str.parse::<u64>()?;
+        let user = http.get_user(id.into()).await;
+        if let Ok(user) = user {
+            new_content = new_content.replace(&format!("<@{id}>"), &format!("@dc/{}", user.name));
+        }
+    }
+
+    get_content_with_refreshed_links(http, &new_content).await
+}
+
 async fn get_content_with_refreshed_links(http: &Http, content: &str) -> Result<String> {
     let links: Vec<&str> = CDN_LINK_RE.find_iter(content).map(|x| x.as_str()).collect();
-    debug!(?links, "got links");
 
     let mut content = content.to_string();
 

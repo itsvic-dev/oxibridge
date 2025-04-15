@@ -11,7 +11,7 @@ use crate::{
     config::GroupConfig,
 };
 
-use super::{parsers::to_core_message, BotEventHandler};
+use super::{parsers::{parse_content, to_core_message}, BotEventHandler};
 
 #[async_trait]
 impl EventHandler for BotEventHandler {
@@ -91,7 +91,7 @@ impl EventHandler for BotEventHandler {
     #[instrument(skip_all)]
     async fn message_update(
         &self,
-        _ctx: Context,
+        ctx: Context,
         _old: Option<Message>,
         _new: Option<Message>,
         event: MessageUpdateEvent,
@@ -125,13 +125,21 @@ impl EventHandler for BotEventHandler {
             }
         };
 
+        let content = match parse_content(&event.content.unwrap_or_default(), &ctx.http).await {
+            Ok(content) => content,
+            Err(report) => {
+                error!(?report, "Could not parse content");
+                return;
+            },
+        };
+
         if let Err(why) = self
             .broadcaster
             .lock()
             .await
             .broadcast(
                 group,
-                &MessageEvent::Update(core_id, event.content.unwrap_or_default()),
+                &MessageEvent::Update(core_id, content),
                 Source::Discord,
             )
             .await
