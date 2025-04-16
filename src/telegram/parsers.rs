@@ -5,7 +5,7 @@ use async_tempfile::TempFile;
 use teloxide::{
     net::Download,
     prelude::*,
-    types::{self, Dice, MediaKind, MessageKind, MessageOrigin, PhotoSize},
+    types::{self, Dice, Location, MediaKind, MessageKind, MessageOrigin, PhotoSize},
 };
 use tracing::*;
 
@@ -178,6 +178,67 @@ pub async fn to_core_message(
                         spoilered: video.has_media_spoiler,
                         filename: String::new(),
                     }],
+                )
+            }
+
+            MediaKind::Audio(audio) => {
+                let file = bot.get_file(&audio.audio.file.id).await?;
+                let attachment = to_core_file(bot.clone(), &file).await?;
+                (
+                    unparse_entities(
+                        &audio.caption.clone().unwrap_or("".to_string()), audio.caption_entities.clone()
+                    ),
+                    vec![core::Attachment {
+                        file: attachment,
+                        spoilered: false,
+                        filename: String::new(),
+                    }],
+                )
+            }
+
+            MediaKind::Voice(voice) => {
+                let file = bot.get_file(&voice.voice.file.id).await?;
+                let attachment = to_core_file(bot.clone(), &file).await?;
+                (
+                    "*Voice message*\n".to_string() + &unparse_entities(
+                        &voice.caption.clone().unwrap_or("".to_string()), voice.caption_entities.clone()
+                    ),
+                    vec![core::Attachment {
+                        file: attachment,
+                        spoilered: false,
+                        filename: String::new(),
+                    }],
+                )
+            }
+
+            MediaKind::VideoNote(note) => {
+                let file = bot.get_file(&note.video_note.file.id).await?;
+                let attachment = to_core_file(bot.clone(), &file).await?;
+                (
+                    "*Video note*".to_string(),
+                    vec![core::Attachment {
+                        file: attachment,
+                        spoilered: false,
+                        filename: String::new(),
+                    }],
+                )
+            }
+
+            MediaKind::Location(location) => {        
+                (
+                    format!("Shared location: {}", location_url(&location.location)),
+                    vec![],
+                )
+            }
+
+            MediaKind::Venue(venue) => {
+                let url = match &venue.venue.google_place_id {
+                    Some(id) => location_url_with_place_id(&venue.venue.location, id),
+                    None => location_url(&venue.venue.location)
+                };
+                (
+                    format!("*Shared a venue*\n**{}**\n{}\n{}", venue.venue.title, venue.venue.address, url),
+                    vec![],
                 )
             }
 
@@ -404,4 +465,12 @@ pub async fn to_core_file(bot: Bot, file: &teloxide::types::File) -> color_eyre:
     //     path: path.into_path(),
     // })
     Ok(tmpfile)
+}
+
+fn location_url(location: &Location) -> String {
+    format!("https://www.google.com/maps/search/?api=1&query={}%2C{}", location.latitude, location.longitude)
+}
+
+fn location_url_with_place_id(location: &Location, place_id: &str) -> String {
+    format!("https://www.google.com/maps/search/?api=1&query={}%2C{}&query_place_id={}", location.latitude, location.longitude, place_id)
 }
