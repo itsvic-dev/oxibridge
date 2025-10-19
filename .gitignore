@@ -3,3 +3,4 @@
 .envrc
 config.yml
 result
+.DS_Store

@@ -1,13 +1,12 @@
 { oxibridge }:
 { config, lib, ... }:
 with lib;
-let
-  cfg = config.services.oxibridge;
-in
-{
+let cfg = config.services.oxibridge;
+in {
   options = {
     services.oxibridge = {
-      enable = mkEnableOption "Oxibridge, a bot connecting multiple Telegram groups and Discord channels";
+      enable = mkEnableOption
+        "Oxibridge, a bot connecting multiple Telegram groups and Discord channels";
       configFile = mkOption {
         type = types.path;
         description = "Path to the configuration for Oxibridge.";
@@ -29,9 +28,7 @@ in
         Group = "oxibridge";
       };
 
-      environment = {
-        CONFIG_FILE = cfg.configFile;
-      };
+      environment = { CONFIG_FILE = cfg.configFile; };
     };
 
     users.users.oxibridge = {
