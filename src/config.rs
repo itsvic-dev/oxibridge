@@ -8,8 +8,8 @@ pub struct Config {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SharedConfig {
-    pub discord_token: String,
-    pub telegram_token: String,
+    pub discord_token: Option<String>,
+    pub telegram_token: Option<String>,
     pub r2: Option<R2Config>,
 }
 
@@ -23,7 +23,12 @@ pub struct R2Config {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GroupConfig {
-    pub telegram_chat: i64,
-    pub discord_channel: u64,
-    pub discord_webhook: String,
+    pub telegram_chat: Option<i64>,
+    pub discord: Option<GroupDiscordConfig>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GroupDiscordConfig {
+    pub channel: u64,
+    pub webhook: String,
 }

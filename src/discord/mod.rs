@@ -42,6 +42,14 @@ impl DiscordBridge {
         storage: Option<Arc<Mutex<R2Storage>>>,
     ) -> Result<Self> {
         debug!("Creating Discord bot");
+        let token = match &config.shared.discord_token {
+            Some(t) => t,
+            None => {
+                return Err(color_eyre::eyre::eyre!(
+                    "Discord token not configured in shared config"
+                ))
+            }
+        };
 
         let intents = GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
 
@@ -54,11 +62,11 @@ impl DiscordBridge {
             config: config.clone(),
             broadcaster,
             cache: cache.clone(),
-            http: Http::new(&config.shared.discord_token),
+            http: Http::new(token),
         };
 
         let client = Arc::new(Mutex::new(
-            Client::builder(&config.shared.discord_token, intents)
+            Client::builder(token, intents)
                 .event_handler(handler)
                 .await?,
         ));

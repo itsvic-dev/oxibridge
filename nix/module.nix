@@ -1,8 +1,9 @@
+self:
 { config, lib, pkgs, ... }:
 with lib;
 let
   cfg = config.services.oxibridge;
-  package = pkgs.callPackage ./package.nix { };
+  package = self.packages.${pkgs.system}.default;
 in {
   options = {
     services.oxibridge = {
@@ -23,19 +24,34 @@ in {
       wantedBy = [ "multi-user.target" ];
 
       serviceConfig = {
+        Type = "simple";
         ExecStart = getExe package;
         Restart = "on-failure";
-        User = "oxibridge";
-        Group = "oxibridge";
+        DynamicUser = true;
+
+        LoadCredential = "config-file:${cfg.configFile}";
+
+        NoNewPrivileges = true;
+        RemoveIPC = true;
+        PrivateTmp = true;
+        ProcSubset = "pid";
+        ProtectClock = true;
+        ProtectControlGroups = true;
+        ProtectHome = true;
+        ProtectHostname = true;
+        ProtectKernelLogs = true;
+        ProtectKernelModules = true;
+        ProtectKernelTunables = true;
+        ProtectProc = "invisible";
+        ProtectSystem = "full";
+        RestrictNamespaces = true;
+        RestrictRealtime = true;
+        RestrictSUIDSGID = true;
+        SystemCallArchitectures = "native";
+        UMask = "0077";
       };
 
-      environment = { CONFIG_FILE = cfg.configFile; };
+      environment.CONFIG_FILE = "%d/config-file";
     };
-
-    users.users.oxibridge = {
-      isSystemUser = true;
-      group = "oxibridge";
-    };
-    users.groups.oxibridge = { };
   };
 }

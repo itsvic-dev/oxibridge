@@ -1,6 +1,7 @@
 use crate::{
     broadcast::{BroadcastReceiver, MessageEvent, Source},
-    config::GroupConfig, core::Author,
+    config::GroupConfig,
+    core::Author,
 };
 use color_eyre::{eyre::eyre, Result};
 use serenity::{
@@ -15,7 +16,12 @@ use super::DiscordBridge;
 impl BroadcastReceiver for DiscordBridge {
     #[instrument(skip_all)]
     async fn receive(&self, group: &GroupConfig, event: &MessageEvent) -> Result<()> {
-        let webhook = Webhook::from_url(self.http.clone(), &group.discord_webhook).await?;
+        let dsc = match &group.discord {
+            Some(dsc) => dsc,
+            None => return Ok(()),
+        };
+
+        let webhook = Webhook::from_url(self.http.clone(), &dsc.webhook).await?;
 
         match event {
             MessageEvent::Create(core_msg) => {
@@ -36,7 +42,7 @@ impl BroadcastReceiver for DiscordBridge {
                     Some(id) => Some(
                         self.http
                             .clone()
-                            .get_message(group.discord_channel.into(), id)
+                            .get_message(dsc.channel.into(), id)
                             .await?,
                     ),
                     None => None,
@@ -45,11 +51,13 @@ impl BroadcastReceiver for DiscordBridge {
                 // construct either a mention or a plain string
                 let mention = match &core_msg.reply_author {
                     Some(author) => match author.source {
-                        Source::Discord => reply_msg.as_ref().map(|msg| format!("<@{}>", msg.author.id.get())),
+                        Source::Discord => reply_msg
+                            .as_ref()
+                            .map(|msg| format!("<@{}>", msg.author.id.get())),
                         _ => {
                             let full_author: Author = author.clone().into();
                             Some(format!("**{}**", full_author.full_name(Some(0))))
-                        },
+                        }
                     },
                     None => None,
                 };
@@ -60,7 +68,7 @@ impl BroadcastReceiver for DiscordBridge {
                             "*In reply to {} (https://discord.com/channels/{}/{}/{})*\n",
                             mention.unwrap_or("???".to_owned()),
                             msg.guild_id.unwrap_or_default(),
-                            group.discord_channel,
+                            dsc.channel,
                             msg.id.get(),
                         )
                     }
@@ -110,7 +118,9 @@ impl BroadcastReceiver for DiscordBridge {
 
                 if let Some(msg) = msg {
                     let mut cache = self.cache.lock().await;
-                    cache.dsc_core_cache.insert(msg.id, (core_msg.id, (&core_msg.author).into()));
+                    cache
+                        .dsc_core_cache
+                        .insert(msg.id, (core_msg.id, (&core_msg.author).into()));
                     cache.core_dsc_cache.insert(core_msg.id, (msg.id, header));
                 };
             }

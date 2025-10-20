@@ -18,5 +18,6 @@ shared:
 # You can define multiple groups here to bridge multiple channels.
 groups:
   - telegram_chat: -1001234567890
-    discord_channel: 1234567890000
-    discord_webhook: "WEBHOOK_URL_HERE"
+    discord:
+      channel: 1234567890000
+      webhook: "WEBHOOK_URL_HERE"

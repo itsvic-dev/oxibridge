@@ -27,7 +27,7 @@ pub async fn message_handle(
         .groups
         .clone()
         .into_iter()
-        .filter(|g| g.telegram_chat == message.chat.id.0)
+        .filter(|g| g.telegram_chat == Some(message.chat.id.0))
         .collect();
 
     let group = match group.first() {
@@ -51,7 +51,9 @@ pub async fn message_handle(
 
     {
         let mut cache = cache.lock().await;
-        cache.tg_core_cache.insert(message.id, (core_message.id, (&core_message.author).into()));
+        cache
+            .tg_core_cache
+            .insert(message.id, (core_message.id, (&core_message.author).into()));
         cache
             .core_tg_cache
             .insert(core_message.id, (message.id, String::new()));
@@ -78,7 +80,7 @@ pub async fn message_edit_handle(
         .groups
         .clone()
         .into_iter()
-        .filter(|g| g.telegram_chat == message.chat.id.0)
+        .filter(|g| g.telegram_chat == Some(message.chat.id.0))
         .collect();
 
     let group = match group.first() {

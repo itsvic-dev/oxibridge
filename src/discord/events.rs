@@ -1,6 +1,7 @@
 use serenity::{
     all::{
-        ChannelId, Context, EventHandler, GuildId, Message, MessageId, MessageReferenceKind, MessageUpdateEvent
+        ChannelId, Context, EventHandler, GuildId, Message, MessageId, MessageReferenceKind,
+        MessageUpdateEvent,
     },
     async_trait,
 };
@@ -11,7 +12,10 @@ use crate::{
     config::GroupConfig,
 };
 
-use super::{parsers::{parse_content, to_core_message}, BotEventHandler};
+use super::{
+    parsers::{parse_content, to_core_message},
+    BotEventHandler,
+};
 
 #[async_trait]
 impl EventHandler for BotEventHandler {
@@ -27,7 +31,12 @@ impl EventHandler for BotEventHandler {
             .groups
             .clone()
             .into_iter()
-            .filter(|g| g.discord_channel == msg.channel_id.get())
+            .filter(|g| {
+                g.discord
+                    .as_ref()
+                    .map(|dsc| dsc.channel == msg.channel_id.get())
+                    .unwrap_or(false)
+            })
             .collect();
 
         let group = match group.first() {
@@ -69,7 +78,9 @@ impl EventHandler for BotEventHandler {
 
         {
             let mut cache = self.cache.lock().await;
-            cache.dsc_core_cache.insert(msg.id, (core_msg.id, (&core_msg.author).into()));
+            cache
+                .dsc_core_cache
+                .insert(msg.id, (core_msg.id, (&core_msg.author).into()));
             cache
                 .core_dsc_cache
                 .insert(core_msg.id, (msg.id, String::new()));
@@ -109,7 +120,12 @@ impl EventHandler for BotEventHandler {
             .groups
             .clone()
             .into_iter()
-            .filter(|g| g.discord_channel == event.channel_id.get())
+            .filter(|g| {
+                g.discord
+                    .as_ref()
+                    .map(|dsc| dsc.channel == event.channel_id.get())
+                    .unwrap_or(false)
+            })
             .collect();
 
         let group = match group.first() {
@@ -130,7 +146,7 @@ impl EventHandler for BotEventHandler {
             Err(report) => {
                 error!(?report, "Could not parse content");
                 return;
-            },
+            }
         };
 
         if let Err(why) = self
@@ -161,7 +177,12 @@ impl EventHandler for BotEventHandler {
             .groups
             .clone()
             .into_iter()
-            .filter(|g| g.discord_channel == channel_id.get())
+            .filter(|g| {
+                g.discord
+                    .as_ref()
+                    .map(|dsc| dsc.channel == channel_id.get())
+                    .unwrap_or(false)
+            })
             .collect();
 
         let group = match group.first() {

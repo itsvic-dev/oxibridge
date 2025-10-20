@@ -22,7 +22,11 @@ use super::{entities::to_string_with_entities, TelegramBridge};
 impl BroadcastReceiver for TelegramBridge {
     #[instrument(skip_all)]
     async fn receive(&self, group: &GroupConfig, event: &MessageEvent) -> Result<()> {
-        let chat_id = Recipient::Id(ChatId(group.telegram_chat));
+        let chat_id = group.telegram_chat.map(|id| Recipient::Id(ChatId(id)));
+        let chat_id = match chat_id {
+            Some(id) => id,
+            None => return Ok(()),
+        };
 
         match event {
             MessageEvent::Create(core_msg) => {
@@ -125,10 +129,13 @@ impl BroadcastReceiver for TelegramBridge {
 
                 if let Some(msg) = messages.first() {
                     let mut cache = self.cache.lock().await;
+                    cache.core_tg_cache.insert(
+                        core_msg.id,
+                        (msg.id, core_msg.author.full_name(Some(0)).clone()),
+                    );
                     cache
-                        .core_tg_cache
-                        .insert(core_msg.id, (msg.id, core_msg.author.full_name(Some(0)).clone()));
-                    cache.tg_core_cache.insert(msg.id, (core_msg.id, (&core_msg.author).into()));
+                        .tg_core_cache
+                        .insert(msg.id, (core_msg.id, (&core_msg.author).into()));
                 };
             }
 
@@ -144,11 +151,7 @@ impl BroadcastReceiver for TelegramBridge {
                 let parsed = to_string_with_entities(&text);
 
                 self.bot
-                    .edit_message_text(
-                        ChatId(group.telegram_chat),
-                        tg_id,
-                        String::from_utf16_lossy(&parsed.0),
-                    )
+                    .edit_message_text(chat_id, tg_id, String::from_utf16_lossy(&parsed.0))
                     .entities(parsed.1)
                     .await?;
             }
