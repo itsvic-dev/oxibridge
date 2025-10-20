@@ -13,11 +13,10 @@
         let pkgs = nixpkgsFor.${system};
         in { default = pkgs.callPackage ./nix/package.nix { }; });
 
-      nixosModules = forAllSystems (system: {
-        default = import ./nix/module.nix {
-          oxibridge = self.packages.${system}.default;
-        };
-      });
+      nixosModules = rec {
+        oxibridge = import ./nix/module.nix;
+        default = oxibridge;
+      };
 
       hydraJobs = { inherit (self.packages) x86_64-linux aarch64-linux; };
     };

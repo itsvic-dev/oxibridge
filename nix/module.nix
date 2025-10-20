@@ -1,7 +1,8 @@
-{ oxibridge }:
-{ config, lib, ... }:
+{ config, lib, pkgs, ... }:
 with lib;
-let cfg = config.services.oxibridge;
+let
+  cfg = config.services.oxibridge;
+  package = pkgs.callPackage ./package.nix { };
 in {
   options = {
     services.oxibridge = {
@@ -22,7 +23,7 @@ in {
       wantedBy = [ "multi-user.target" ];
 
       serviceConfig = {
-        ExecStart = getExe oxibridge;
+        ExecStart = getExe package;
         Restart = "on-failure";
         User = "oxibridge";
         Group = "oxibridge";
