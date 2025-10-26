@@ -1,23 +1,22 @@
 self:
 { config, lib, pkgs, ... }:
-with lib;
 let
   cfg = config.services.oxibridge;
   package = self.packages.${pkgs.system}.default;
 in {
   options = {
     services.oxibridge = {
-      enable = mkEnableOption
+      enable = lib.mkEnableOption
         "Oxibridge, a bot connecting multiple Telegram groups and Discord channels";
-      configFile = mkOption {
-        type = types.path;
+      configFile = lib.mkOption {
+        type = lib.types.path;
         description = "Path to the configuration for Oxibridge.";
         default = "/run/oxibridge/config.yml";
       };
     };
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     systemd.services.oxibridge = {
       after = [ "network.target" "network-online.target" ];
       wants = [ "network-online.target" ];
@@ -25,7 +24,7 @@ in {
 
       serviceConfig = {
         Type = "simple";
-        ExecStart = getExe package;
+        ExecStart = "${toString package}/bin/oxibridge";
         Restart = "on-failure";
         DynamicUser = true;
 

@@ -7,14 +7,13 @@
     let
       supportedSystems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
-      nixpkgsFor = forAllSystems (system: nixpkgs.legacyPackages.${system});
     in {
       packages = forAllSystems (system:
-        let pkgs = nixpkgsFor.${system};
+        let pkgs = nixpkgs.legacyPackages.${system};
         in { default = pkgs.callPackage ./nix/package.nix { }; });
 
       checks = forAllSystems (system:
-        let pkgs = nixpkgsFor.${system};
+        let pkgs = nixpkgs.legacyPackages.${system};
         in { default = pkgs.callPackage ./nix/test.nix { inherit self; }; });
 
       nixosModules = rec {
