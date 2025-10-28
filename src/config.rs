@@ -36,7 +36,8 @@ pub struct BackendConfig {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GroupConfig {
-    // for discord: channel
+    // for discord: guild, channel
+    pub guild: Option<u64>,
     pub channel: Option<u64>,
     // for telegram: chat
     pub chat: Option<i64>,

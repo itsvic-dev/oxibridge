@@ -36,4 +36,5 @@ groups:
       # raw peer IDs must be prefixed with '-100' for the bot API
       chat: -1001234567890
     discord01:
+      guild: 1234567890000
       channel: 1234567890000

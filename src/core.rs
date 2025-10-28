@@ -3,24 +3,23 @@ use std::sync::LazyLock;
 use async_tempfile::TempFile;
 use tokio::sync::Mutex;
 
-use crate::broadcast::Source;
-
 #[derive(Debug)]
 pub struct Author {
     pub display_name: Option<String>,
     pub username: String,
     pub avatar: Option<TempFile>,
-    pub source: Source,
+    // pub source: Source,
 }
 
 impl Author {
     pub fn full_name(&self, length: Option<usize>) -> String {
         let length = length.unwrap_or(32);
 
-        let source: &str= match self.source {
-            Source::Discord => "dc",
-            Source::Telegram => "tg",
-        };
+        // let source: &str = match self.source {
+        //     Source::Discord => "dc",
+        //     Source::Telegram => "tg",
+        // };
+        let source = "TODO";
 
         if let Some(display_name) = &self.display_name {
             let full_name = format!("{} (@{}/{})", display_name, source, self.username);
@@ -40,7 +39,7 @@ impl Author {
 pub struct PartialAuthor {
     pub display_name: Option<String>,
     pub username: String,
-    pub source: Source,
+    // pub source: Source,
 }
 
 impl From<&Author> for PartialAuthor {
@@ -48,7 +47,7 @@ impl From<&Author> for PartialAuthor {
         Self {
             display_name: value.display_name.clone(),
             username: value.username.clone(),
-            source: value.source.clone(),
+            // source: value.source.clone(),
         }
     }
 }
@@ -58,7 +57,7 @@ impl From<PartialAuthor> for Author {
         Self {
             display_name: value.display_name.clone(),
             username: value.username.clone(),
-            source: value.source.clone(),
+            // source: value.source.clone(),
             avatar: None,
         }
     }

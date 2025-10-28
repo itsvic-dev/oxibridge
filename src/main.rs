@@ -1,17 +1,12 @@
 use std::sync::Arc;
 
-use broadcast::Broadcaster;
 use color_eyre::{eyre::Result, Section};
-use tokio::sync::Mutex;
 use tracing::*;
 use tracing_subscriber::{filter::LevelFilter, layer::SubscriberExt, EnvFilter, Layer};
 
-mod broadcast;
 mod config;
 mod core;
-mod discord;
 mod storage;
-mod telegram;
 pub use config::Config;
 
 #[tokio::main]
@@ -41,33 +36,10 @@ async fn main() -> Result<()> {
     ).await.suggestion(
         "Create a `config.yml` file and fill it out. Look at `config.example.yml` for reference.",
     )?)?;
+
+    // TODO: validate config
     let config: Arc<Config> = Arc::new(serde_yaml::from_str(&config)?);
-
-    let storage = if let Some(config) = &config.shared.r2 {
-        Some(Arc::new(Mutex::new(storage::R2Storage::new(config)?)))
-    } else {
-        None
-    };
-
-    let broadcaster = Arc::new(Mutex::new(Broadcaster::init()));
-
-    let telegram = Arc::new(telegram::TelegramBridge::init(
-        broadcaster.clone(),
-        config.clone(),
-    ));
-    let discord = Arc::new(
-        discord::DiscordBridge::new(config.clone(), broadcaster.clone(), storage.clone()).await?,
-    );
-
-    {
-        broadcaster
-            .lock()
-            .await
-            .add_receiver(telegram.clone())
-            .add_receiver(discord.clone());
-    }
-
-    tokio::join!(telegram.start(), discord.start());
+    debug!("config file read successfully: {config:#?}");
 
     Ok(())
 }
