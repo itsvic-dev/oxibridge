@@ -4,7 +4,7 @@ rustPlatform.buildRustPackage rec {
   version = "0.1.0";
   src = lib.fileset.toSource {
     root = ../.;
-    fileset = lib.fileset.difference ../. ./nix;
+    fileset = lib.fileset.difference ../. ../nix;
   };
   cargoLock = { lockFile = ../Cargo.lock; };
 
