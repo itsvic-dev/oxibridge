@@ -24,7 +24,7 @@ in {
 
       serviceConfig = {
         Type = "simple";
-        ExecStart = "${toString package}/bin/oxibridge";
+        ExecStart = lib.getExe package;
         Restart = "on-failure";
         DynamicUser = true;
 
