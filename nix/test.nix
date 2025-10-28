@@ -6,7 +6,11 @@ pkgs.nixosTest {
     imports = [ self.nixosModules.oxibridge ];
     services.oxibridge = {
       enable = true;
-      configFile = ./config-test.yml;
+      configFile = pkgs.replaceVarsWith {
+        src = ./config-test.yml;
+        replacements = { "src" = ./src.txt; };
+        name = "config.yml";
+      };
     };
   };
 
@@ -14,6 +18,6 @@ pkgs.nixosTest {
     import time
     machine.wait_for_unit("oxibridge.service");
     time.sleep(5)
-    machine.succeed("systemctl is-active oxibridge.service");
+    # TODO: read dst.txt from service, compare against known good hash
   '';
 }

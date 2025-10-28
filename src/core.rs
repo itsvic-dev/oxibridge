@@ -3,11 +3,11 @@ use std::sync::LazyLock;
 use async_tempfile::TempFile;
 use tokio::sync::Mutex;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Author {
     pub display_name: Option<String>,
     pub username: String,
-    pub avatar: Option<TempFile>,
+    // pub avatar: Option<TempFile>,
     // pub source: Source,
 }
 
@@ -58,12 +58,12 @@ impl From<PartialAuthor> for Author {
             display_name: value.display_name.clone(),
             username: value.username.clone(),
             // source: value.source.clone(),
-            avatar: None,
+            // avatar: None,
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Message {
     pub author: Author,
     pub content: String,
@@ -98,9 +98,9 @@ impl Message {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Attachment {
-    pub file: TempFile,
+    // pub file: TempFile,
     pub filename: String,
     pub spoilered: bool,
 }

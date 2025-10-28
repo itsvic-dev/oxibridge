@@ -3,7 +3,7 @@ backends:
     # the "file" backend reads lines from a file and sends them as messages
     # and writes lines to a file when receiving messages
     kind: file
-    token: ./src.txt
+    token: @src@
 
   dst:
     kind: file

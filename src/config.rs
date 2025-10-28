@@ -9,7 +9,7 @@ pub struct Config {
     #[serde(default)]
     pub backends: HashMap<String, BackendConfig>,
     #[serde(default)]
-    pub groups: HashMap<String, HashMap<String, GroupConfig>>,
+    pub groups: HashMap<String, HashMap<String, GroupBackendConfig>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -37,8 +37,8 @@ pub struct BackendConfig {
     pub token: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct GroupConfig {
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GroupBackendConfig {
     // for discord: guild, channel
     #[serde(default)]
     pub guild: Option<u64>,
