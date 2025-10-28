@@ -51,32 +51,11 @@ async fn main() -> Result<()> {
 
     for (group_name, backends, tx) in groups {
         let group_name = group_name.clone();
-        let mut rx = tx.subscribe();
         info!("Bringing up backends for group '{}'", group_name);
 
         for backend in backends {
             backend.start().await;
         }
-        // tasks::add_task(tokio::spawn(async move {
-        //     loop {
-        //         let msg = rx.recv().await;
-        //         match msg {
-        //             Err(e) => match e {
-        //                 RecvError::Closed => {
-        //                     error!("Channel closed for group '{}'", group_name);
-        //                     break;
-        //                 }
-        //                 RecvError::Lagged(count) => {
-        //                     warn!("Missed {} messages for group '{}'", count, group_name);
-        //                 }
-        //             },
-        //             Ok(msg) => debug!(
-        //                 "({}, {}): {:?}",
-        //                 msg.group_name, msg.backend_name, msg.content
-        //             ),
-        //         }
-        //     }
-        // }));
     }
 
     futures::future::join_all(tasks::get_tasks()).await;
