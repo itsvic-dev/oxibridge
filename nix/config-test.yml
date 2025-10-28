@@ -1,4 +1,17 @@
-shared:
-  discord_token: "PLACEHOLDER"
-  telegram_token: "PLACEHOLDER"
-groups: []
+backends:
+  src:
+    # the "file" backend reads lines from a file and sends them as messages
+    # and writes lines to a file when receiving messages
+    kind: file
+    token: ./src.txt
+
+  dst:
+    kind: file
+    token: ./dst.txt
+
+groups:
+  test:
+    src:
+      readonly: true
+    dst:
+      writeonly: true

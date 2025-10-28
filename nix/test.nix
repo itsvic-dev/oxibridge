@@ -11,7 +11,9 @@ pkgs.nixosTest {
   };
 
   testScript = ''
+    import time
     machine.wait_for_unit("oxibridge.service");
+    time.sleep(5)
     machine.succeed("systemctl is-active oxibridge.service");
   '';
 }
