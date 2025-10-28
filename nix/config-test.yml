@@ -7,7 +7,7 @@ backends:
 
   dst:
     kind: file
-    token: ./dst.txt
+    token: /run/oxibridge/dst.txt
 
 groups:
   test:

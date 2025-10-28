@@ -6,12 +6,10 @@ pkgs.nixosTest {
     imports = [ self.nixosModules.oxibridge ];
     services.oxibridge = {
       enable = true;
-      configFile = pkgs.replaceVarsWith {
-        src = ./config-test.yml;
-        replacements = { "src" = ./src.txt; };
-        name = "config.yml";
-      };
+      configFile = pkgs.replaceVars ./config-test.yml { "src" = ./src.txt; };
     };
+
+    systemd.services.oxibridge.unitConfig.RuntimeDirectory = "oxibridge";
   };
 
   testScript = ''
