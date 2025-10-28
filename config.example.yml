@@ -1,13 +1,8 @@
 # This is the configuration file for Oxibridge.
-# As of right now, all fields are required unless noted otherwise.
-# This may change if I ever add more platforms in the future.
 
-# This configuration is shared between different platforms.
-shared:
-  discord_token: "PLACEHOLDER"
-  telegram_token: "PLACEHOLDER"
-
-  # Optional. Used for avatars on Discord
+global:
+  # Optional. Used for bridging avatars from Telegram to Discord without exposing the bot token.
+  # If you don't want to use R2, simply remove the 'r2' section.
   r2:
     bucket_name: "oxibridge-avatars"
     account_id: ""
@@ -15,9 +10,30 @@ shared:
     access_key: ""
     secret_key: ""
 
+  cache:
+    # Available types: memory
+    # Default: memory
+    # TODO: expand to other types (redis, sqlite)
+    kind: memory
+
+backends:
+  # You can define multiple backends for groups. Useful for isolation.
+  telegram01:
+    kind: telegram
+    # You can obtain a bot token from @BotFather on Telegram
+    token: "PLACEHOLDER"
+
+  discord01:
+    kind: discord
+    # You can obtain a bot token from https://discord.com/developers/applications
+    # Required permissions: View Channels, Manage Webhooks (536871936)
+    token: "PLACEHOLDER"
+
 # You can define multiple groups here to bridge multiple channels.
 groups:
-  - telegram_chat: -1001234567890
-    discord:
+  example_group:
+    telegram01:
+      # raw peer IDs must be prefixed with '-100' for the bot API
+      chat: -1001234567890
+    discord01:
       channel: 1234567890000
-      webhook: "WEBHOOK_URL_HERE"

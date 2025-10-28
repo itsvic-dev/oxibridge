@@ -1,16 +1,18 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
-    pub shared: SharedConfig,
-    pub groups: Vec<GroupConfig>,
+    pub global: GlobalSection,
+    pub backends: HashMap<String, BackendConfig>,
+    pub groups: HashMap<String, HashMap<String, GroupConfig>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct SharedConfig {
-    pub discord_token: Option<String>,
-    pub telegram_token: Option<String>,
+pub struct GlobalSection {
     pub r2: Option<R2Config>,
+    pub cache: Option<CacheConfig>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -21,14 +23,21 @@ pub struct R2Config {
     pub secret_key: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GroupConfig {
-    pub telegram_chat: Option<i64>,
-    pub discord: Option<GroupDiscordConfig>,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CacheConfig {
+    pub kind: Option<String>, // one of "memory". defaults to "memory"
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GroupDiscordConfig {
-    pub channel: u64,
-    pub webhook: String,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BackendConfig {
+    pub kind: String, // one of "discord", "telegram"
+    pub token: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GroupConfig {
+    // for discord: channel
+    pub channel: Option<u64>,
+    // for telegram: chat
+    pub chat: Option<i64>,
 }
