@@ -1,4 +1,4 @@
-use crate::config::{BackendConfig, GroupBackendConfig};
+use crate::config::{BackendConfig, BackendKind, GroupBackendConfig};
 use tokio::sync::broadcast;
 use tracing::debug;
 
@@ -10,20 +10,20 @@ pub fn get_backend(
     group_name: &str,
     group_config: &GroupBackendConfig,
     tx: broadcast::Sender<BackendMessage>,
-) -> Option<Box<dyn self::Backend>> {
+) -> Box<dyn self::Backend> {
     debug!(
-        "Loading backend '{}' of kind '{}' for group '{}'",
+        "Loading backend '{}' ({:?}) for group '{}'",
         name, backend_config.kind, group_name
     );
-    match backend_config.kind.as_str() {
-        "file" => Some(Box::new(file::FileBackend::new(
+    match backend_config.kind {
+        BackendKind::File => Box::new(file::FileBackend::new(
             name,
             backend_config,
             group_name,
             group_config,
             tx,
-        ))),
-        _ => None,
+        )),
+        _ => todo!(),
     }
 }
 

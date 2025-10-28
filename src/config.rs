@@ -15,7 +15,8 @@ pub struct Config {
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct GlobalSection {
     pub r2: Option<R2Config>,
-    pub cache: Option<CacheConfig>,
+    #[serde(default)]
+    pub cache: CacheConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -26,15 +27,36 @@ pub struct R2Config {
     pub secret_key: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize)]
 pub struct CacheConfig {
-    pub kind: Option<String>, // one of "memory". defaults to "memory"
+    #[serde(default)]
+    pub kind: CacheKind, // one of "memory". defaults to "memory"
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CacheKind {
+    Memory,
+}
+
+impl Default for CacheKind {
+    fn default() -> Self {
+        Self::Memory
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BackendConfig {
-    pub kind: String, // one of "discord", "telegram"
+    pub kind: BackendKind, // one of "discord", "telegram"
     pub token: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BackendKind {
+    Discord,
+    Telegram,
+    File,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

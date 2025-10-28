@@ -1,5 +1,4 @@
 use color_eyre::{eyre::Result, Section};
-use tokio::sync::broadcast::error::RecvError;
 use tracing::*;
 use tracing_subscriber::{filter::LevelFilter, layer::SubscriberExt, EnvFilter, Layer};
 
@@ -23,6 +22,7 @@ async fn main() -> Result<()> {
 
     // TODO: validate config
     let config: Config = serde_yaml::from_str(&config)?;
+    debug!("config file parsed: {config:#?}");
 
     let groups: Vec<_> = config
         .groups
@@ -41,7 +41,6 @@ async fn main() -> Result<()> {
                         &group_backend_config[name],
                         tx.clone(),
                     )
-                    .unwrap_or_else(|| panic!("Unsupported backend type \"{}\"", backend.kind))
                 })
                 .collect();
 
@@ -49,7 +48,7 @@ async fn main() -> Result<()> {
         })
         .collect();
 
-    for (group_name, backends, tx) in groups {
+    for (group_name, backends, _tx) in groups {
         let group_name = group_name.clone();
         info!("Bringing up backends for group '{}'", group_name);
 
