@@ -22,7 +22,6 @@ async fn main() -> Result<()> {
 
     // TODO: validate config
     let config: Config = serde_yaml::from_str(&config)?;
-    debug!("config file parsed: {config:#?}");
 
     let groups: Vec<_> = config
         .groups
