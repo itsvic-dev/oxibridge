@@ -6,7 +6,8 @@ rustPlatform.buildRustPackage rec {
     root = ../.;
     fileset = lib.fileset.difference ../. ../nix;
   };
-  cargoLock = { lockFile = ../Cargo.lock; };
+  cargoLock.lockFile = ../Cargo.lock;
+  buildAndTestSubdir = "oxibridge";
 
   meta = { mainProgram = "oxibridge"; };
 }
