@@ -1,9 +1,10 @@
 [workspace]
 resolver = "3"
-members = ["oxibridge"]
+members = ["minicord", "oxibridge"]
 
 [workspace.lints.clippy]
 cargo = { level = "warn", priority = -1 }
+multiple-crate-versions = { level = "allow" }
 complexity = { level = "warn", priority = -1 }
 nursery = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }

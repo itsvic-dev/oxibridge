@@ -2,6 +2,12 @@
 name = "oxibridge"
 version = "0.1.0"
 edition = "2021"
+description = "A bridge between messaging platforms"
+repository = "https://github.com/itsvic-dev/oxibridge"
+license = "GPL-3.0-or-later"
+readme = "../README.md"
+keywords = ["discord", "telegram", "bridge"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 async-tempfile = "0.7.0"
