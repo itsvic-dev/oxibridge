@@ -35,7 +35,7 @@ impl Client {
     /// - [`reqwest::Error`]
     pub async fn get<T: DeserializeOwned>(
         &self,
-        endpoint: String,
+        endpoint: &str,
     ) -> Result<APIResponse<T>, Box<dyn Error>> {
         let response = self
             .http
@@ -51,7 +51,7 @@ impl Client {
     /// - [`reqwest::Error`]
     pub async fn post<T: Serialize, U: DeserializeOwned>(
         &self,
-        endpoint: String,
+        endpoint: &str,
         body: T,
     ) -> Result<APIResponse<U>, Box<dyn Error>> {
         let response = self

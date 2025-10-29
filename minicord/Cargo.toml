@@ -22,3 +22,6 @@ serde_repr = "0.1"
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+tokio = { version = "1.48.0", features = ["rt-multi-thread", "macros"] }

@@ -1083,6 +1083,7 @@ dependencies = [
  "secure-string",
  "serde",
  "serde_repr",
+ "tokio",
 ]
 
 [[package]]
