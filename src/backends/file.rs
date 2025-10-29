@@ -5,7 +5,7 @@ use tokio::{
     sync::broadcast,
     time::sleep,
 };
-use tracing::debug;
+use log::debug;
 
 use crate::config::{BackendConfig, GroupBackendConfig};
 

@@ -4,17 +4,16 @@ use crate::{
     core::Author,
 };
 use color_eyre::{eyre::eyre, Result};
+use log::*;
 use serenity::{
     all::{CreateAllowedMentions, CreateAttachment, EditWebhookMessage, ExecuteWebhook, Webhook},
     async_trait,
 };
-use tracing::*;
 
 use super::DiscordBridge;
 
 #[async_trait]
 impl BroadcastReceiver for DiscordBridge {
-    #[instrument(skip_all)]
     async fn receive(&self, group: &GroupConfig, event: &MessageEvent) -> Result<()> {
         let dsc = match &group.discord {
             Some(dsc) => dsc,

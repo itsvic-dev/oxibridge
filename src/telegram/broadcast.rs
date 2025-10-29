@@ -14,13 +14,12 @@ use teloxide::{
         InputMediaVideo, Recipient, ReplyParameters,
     },
 };
-use tracing::*;
+use log::*;
 
 use super::{entities::to_string_with_entities, TelegramBridge};
 
 #[async_trait]
 impl BroadcastReceiver for TelegramBridge {
-    #[instrument(skip_all)]
     async fn receive(&self, group: &GroupConfig, event: &MessageEvent) -> Result<()> {
         let chat_id = group.telegram_chat.map(|id| Recipient::Id(ChatId(id)));
         let chat_id = match chat_id {

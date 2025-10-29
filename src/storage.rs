@@ -5,9 +5,9 @@ use std::{
 
 use async_tempfile::TempFile;
 use color_eyre::Result;
+use log::debug;
 use s3::{creds::Credentials, Bucket, Region};
 use tokio::io::AsyncReadExt;
-use tracing::{debug, instrument};
 
 use crate::config::R2Config;
 
@@ -26,7 +26,6 @@ struct CacheItem {
 const DAY: u32 = 24 * 60 * 60;
 
 impl R2Storage {
-    #[instrument(skip_all)]
     pub fn new(config: &R2Config) -> Result<Self> {
         let bucket = Bucket::new(
             &config.bucket_name,
@@ -52,7 +51,6 @@ impl R2Storage {
     /// Gets a URL to this file in R2-backed storage.
     ///
     /// The URL is a presigned GET URL which will expire after 1 day.
-    #[instrument(skip_all)]
     pub async fn get_url(&mut self, file: &TempFile) -> Result<String> {
         // read file
         let mut content = Vec::new();

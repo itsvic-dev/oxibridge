@@ -7,7 +7,7 @@ use teloxide::{
     prelude::*,
     types::{self, Dice, Location, MediaKind, MessageKind, MessageOrigin, PhotoSize},
 };
-use tracing::*;
+use log::*;
 
 use super::unparse::unparse_entities;
 
@@ -134,7 +134,6 @@ pub fn serialize_die_value(die: Dice) -> String {
     }
 }
 
-#[instrument(skip(bot, m))]
 pub async fn to_core_message(
     bot: Bot,
     m: &Message,
@@ -414,7 +413,6 @@ pub async fn to_core_message(
     Ok(core::Message::new(core_author, content, attachments, in_reply_to, reply_author).await)
 }
 
-#[instrument(skip(bot))]
 async fn to_core_author(bot: Bot, author: &types::User) -> color_eyre::Result<core::Author> {
     let photos = bot.get_user_profile_photos(author.id).await?;
     let photo = photos.photos.first();
@@ -447,7 +445,6 @@ pub async fn photo_to_core_file(bot: Bot, photo: &[PhotoSize]) -> color_eyre::Re
     }
 }
 
-#[instrument(skip(bot))]
 pub async fn to_core_file(bot: Bot, file: &teloxide::types::File) -> color_eyre::Result<TempFile> {
     let extension = Path::new(&file.path)
         .extension()

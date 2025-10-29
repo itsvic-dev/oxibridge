@@ -1,6 +1,6 @@
 use crate::config::{BackendConfig, BackendKind, GroupBackendConfig};
+use log::debug;
 use tokio::sync::broadcast;
-use tracing::debug;
 
 mod file;
 

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use color_eyre::eyre::eyre;
 use teloxide::{types::Message, Bot};
 use tokio::sync::Mutex;
-use tracing::*;
+use log::*;
 
 use crate::{
     broadcast::{Broadcaster, MessageEvent, Source},
@@ -14,7 +14,6 @@ use crate::{
 
 use super::TgCache;
 
-#[instrument(skip_all)]
 pub async fn message_handle(
     bot: Bot,
     message: Message,
@@ -68,7 +67,6 @@ pub async fn message_handle(
     Ok(())
 }
 
-#[instrument(skip_all)]
 pub async fn message_edit_handle(
     message: Message,
     config: Arc<Config>,

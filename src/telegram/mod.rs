@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 use teloxide::{prelude::*, types::MessageId};
 use tokio::sync::Mutex;
-use tracing::*;
+use log::*;
 
 use crate::core::PartialAuthor;
 use crate::{broadcast::Broadcaster, Config};
@@ -33,7 +33,6 @@ struct TgCache {
 }
 
 impl TelegramBridge {
-    #[instrument(skip_all)]
     pub fn init(broadcaster: Arc<Mutex<Broadcaster>>, config: Arc<Config>) -> TelegramBridge {
         debug!("Creating Telegram bot");
         let bot = Bot::new(

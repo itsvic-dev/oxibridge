@@ -6,7 +6,7 @@ use serenity::{
     all::{Http, MessageId},
     prelude::*,
 };
-use tracing::*;
+use log::*;
 
 mod broadcast;
 mod events;
@@ -35,7 +35,6 @@ struct DscCache {
 }
 
 impl DiscordBridge {
-    #[instrument(skip_all)]
     pub async fn new(
         config: Arc<Config>,
         broadcaster: Arc<Mutex<Broadcaster>>,

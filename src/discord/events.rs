@@ -1,3 +1,4 @@
+use log::*;
 use serenity::{
     all::{
         ChannelId, Context, EventHandler, GuildId, Message, MessageId, MessageReferenceKind,
@@ -5,7 +6,6 @@ use serenity::{
     },
     async_trait,
 };
-use tracing::*;
 
 use crate::{
     broadcast::{MessageEvent, Source},
@@ -19,7 +19,6 @@ use super::{
 
 #[async_trait]
 impl EventHandler for BotEventHandler {
-    #[instrument(skip_all)]
     async fn message(&self, _ctx: Context, msg: Message) {
         if msg.author.bot || msg.author.system {
             return;
@@ -99,7 +98,6 @@ impl EventHandler for BotEventHandler {
         }
     }
 
-    #[instrument(skip_all)]
     async fn message_update(
         &self,
         ctx: Context,

@@ -4,7 +4,7 @@ use markdown::{
 };
 use regex::Regex;
 use teloxide::types::{MessageEntity, MessageEntityKind};
-use tracing::debug;
+use log::debug;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct StringWithEntities(pub Vec<u16>, pub Vec<MessageEntity>);
