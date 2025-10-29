@@ -1,16 +1,18 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Snowflake(u64);
+pub struct Snowflake(String);
 
 impl From<u64> for Snowflake {
     fn from(value: u64) -> Self {
-        Self(value)
+        Self(value.to_string())
     }
 }
 
-impl From<Snowflake> for u64 {
-    fn from(value: Snowflake) -> Self {
-        value.0
+impl TryFrom<Snowflake> for u64 {
+    type Error = <Self as std::str::FromStr>::Err;
+
+    fn try_from(value: Snowflake) -> Result<Self, Self::Error> {
+        value.0.parse()
     }
 }
