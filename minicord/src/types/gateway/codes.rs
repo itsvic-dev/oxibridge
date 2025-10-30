@@ -3,7 +3,7 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 /// Your connection to Discord's gateway may sometimes close. When it does, you will receive a close code that tells you what happened.
 #[derive(Debug, Serialize_repr, Deserialize_repr)]
 #[repr(u16)]
-pub enum GatewayCloseEventCode {
+pub enum CloseEventCode {
     /// We're not sure what went wrong. Try reconnecting?
     UnknownError = 4000,
 
@@ -47,7 +47,7 @@ pub enum GatewayCloseEventCode {
     DisallowedIntents = 4014,
 }
 
-impl GatewayCloseEventCode {
+impl CloseEventCode {
     /// Returns a boolean that specifies whether you should reconnect upon receiving this error code.
     #[must_use]
     pub const fn reconnect(&self) -> bool {

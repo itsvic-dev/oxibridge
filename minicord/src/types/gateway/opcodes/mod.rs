@@ -1,9 +1,15 @@
+mod hello;
+mod identify;
+
+pub use hello::Hello;
+pub use identify::{Identify, IdentifyProperties};
+
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 #[derive(Debug, Serialize_repr, Deserialize_repr)]
 #[repr(u8)]
 /// All gateway events in Discord are tagged with an opcode that denotes the payload type.
-pub enum GatewayOpcode {
+pub enum Opcode {
     /// (Receive) An event was dispatched.
     Dispatch = 0,
 

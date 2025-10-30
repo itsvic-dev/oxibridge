@@ -12,7 +12,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     };
 
-    let client = Client::new(&token);
+    let client = Client::new(&token)?;
     let me_resp = client.get::<User>("users/@me").await?;
 
     let me = match me_resp {

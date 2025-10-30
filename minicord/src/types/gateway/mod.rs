@@ -1,28 +1,33 @@
 mod codes;
+pub mod events;
 mod opcodes;
 
-pub use codes::GatewayCloseEventCode;
-pub use opcodes::GatewayOpcode;
+pub use codes::CloseEventCode;
+pub use opcodes::*;
+
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+use events::Event;
 
 /// Gateway event payloads have a common structure, but the contents of the associated data ([`Self::data`]) varies between the different events.
 ///
-/// [`Self::sequence`] and [`Self::event`] are [`None`] when [`Self::opcode`] is not [`GatewayOpcode::Dispatch`].
+/// [`Self::sequence`] and [`Self::event`] are [`None`] when [`Self::opcode`] is not [`Opcode::Dispatch`].
 #[derive(Debug, Deserialize, Serialize)]
-pub struct GatewayEvent<T> {
+pub struct GatewayEvent {
     #[serde(rename = "op")]
-    /// [`GatewayOpcode`] which indicates the payload type
-    opcode: GatewayOpcode,
+    /// [`Opcode`] which indicates the payload type
+    pub opcode: Opcode,
 
     #[serde(rename = "d")]
     /// Event data
-    data: Option<T>,
+    pub data: Option<Value>,
 
     #[serde(rename = "s")]
     /// Sequence number of event used for [resuming sessions](https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-opcodes) and [heartbeating](https://discord.com/developers/docs/events/gateway#sending-heartbeats)
-    sequence: Option<usize>,
+    pub sequence: Option<usize>,
 
     #[serde(rename = "t")]
     /// Event name
-    event: Option<String>,
+    pub event: Option<Event>,
 }

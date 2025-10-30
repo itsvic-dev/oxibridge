@@ -6,14 +6,14 @@
 
 use std::error::Error;
 
-use reqwest::Method;
+use reqwest::{Method, header};
 use secure_string::SecureString;
 use serde::{Serialize, de::DeserializeOwned};
 
 use crate::types::http::APIResponse;
 
 mod gateway;
-pub use gateway::Gateway;
+pub use gateway::{Gateway, GatewayMessage};
 pub mod types;
 
 static BASE_URL: &str = "https://discord.com/api/v10";
@@ -25,12 +25,23 @@ pub struct Client {
 
 impl Client {
     /// Creates a new [`Client`] instance with a plain-text token.
-    #[must_use]
-    pub fn new(token: &str) -> Self {
-        Self {
+    ///
+    /// # Errors
+    /// - [`reqwest::Error`]
+    pub fn new(token: &str) -> Result<Self, Box<dyn Error>> {
+        let mut headers = header::HeaderMap::new();
+        headers.insert(
+            "User-Agent",
+            header::HeaderValue::from_static("minicord (https://github.com/itsvic-dev/oxibridge)"),
+        );
+
+        Ok(Self {
             token: SecureString::from(token),
-            http: reqwest::Client::new(),
-        }
+            http: reqwest::Client::builder()
+                .http1_only() // HTTP/2 breaks reqwest-websocket
+                .default_headers(headers)
+                .build()?,
+        })
     }
 
     /// # Errors
