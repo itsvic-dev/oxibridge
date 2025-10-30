@@ -53,6 +53,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         })
         .collect();
 
+    // we don't need to keep groups around anymore, drop them so oxibridge can cleanly shut down once all group senders get dropped
+    std::mem::drop(groups);
+
     for (name, backend) in backends {
         debug!("Bringing up backend {name}");
         backend.start().await?;
@@ -65,9 +68,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 fn setup_logging() -> Result<(), Box<dyn Error>> {
     color_eyre::install()?;
-    let mut builder = colog::default_builder();
-    builder.filter(Some("oxibridge"), log::LevelFilter::Debug);
-    builder.init();
+    let mut builder = env_logger::builder();
+
+    builder
+        .filter(Some("oxibridge"), log::LevelFilter::Debug)
+        .try_init()?;
 
     Ok(())
 }
