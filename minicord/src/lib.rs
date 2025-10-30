@@ -12,6 +12,8 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use crate::types::http::APIResponse;
 
+mod gateway;
+pub use gateway::Gateway;
 pub mod types;
 
 static BASE_URL: &str = "https://discord.com/api/v10";

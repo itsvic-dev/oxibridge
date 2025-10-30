@@ -2,6 +2,7 @@ mod snowflake;
 mod user;
 mod webhook;
 
+pub mod gateway;
 pub mod http;
 
 pub use snowflake::Snowflake;
