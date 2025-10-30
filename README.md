@@ -1,7 +1,5 @@
-# Oxibridge
+# Here be dragons!
 
-Oxibridge is a [work-in-progress](TODO.md) bridge between different messaging platforms.
+This is Oxibridge's `cleanup` branch. It is currently undergoing a **huge** rewrite effort to simplify and modularise Oxibridge's codebase.
 
-## Currently supported
-- Discord channels
-- Telegram groups
+As such, **this is very broken**, and should not be used in production just yet.
