@@ -4,6 +4,9 @@ use minicord::{Client, Gateway, GatewayMessage};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Debug)
+        .init();
     let Ok(token) = std::env::var("TOKEN") else {
         println!("Please provide a token via the `TOKEN` environment variable.");
         return Ok(());
