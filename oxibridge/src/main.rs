@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use color_eyre::Section;
-use log::*;
+use log::{debug, info};
 
 mod backends;
 mod config;
@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     info!("Hello, world!");
 
     let config = String::from_utf8(tokio::fs::read(
-        std::env::var("CONFIG_FILE").unwrap_or("config.yml".to_owned())
+        std::env::var("CONFIG_FILE").unwrap_or_else(|_| "config.yml".to_owned())
     ).await.suggestion(
         "Create a `config.yml` file and fill it out. Look at `config.example.yml` for reference.",
     )?)?;
@@ -43,7 +43,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 .iter()
                 .filter(|(_, config, _)| config.contains_key(name))
                 .map(|(group_name, config, tx)| BackendGroup {
-                    name: group_name.to_string(),
+                    name: (*group_name).clone(),
                     config: config[name].clone(),
                     tx: tx.clone(),
                 })
@@ -58,7 +58,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         backend.start().await?;
     }
 
-    futures::future::join_all(tasks::get_tasks()).await;
+    futures::future::join_all(tasks::get_tasks()?).await;
 
     Ok(())
 }
