@@ -1,45 +1,40 @@
-use std::time::Duration;
+use std::{error::Error, time::Duration};
 
+use log::{debug, warn};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt},
     sync::broadcast,
     time::sleep,
 };
-use log::debug;
 
-use crate::config::{BackendConfig, GroupBackendConfig};
+use crate::{
+    backends::BackendGroup,
+    config::{BackendConfig, GroupBackendConfig},
+};
 
 pub struct FileBackend {
     tx: broadcast::Sender<super::BackendMessage>,
 
     file_path: String,
     name: String,
-    group_name: String,
-    group_config: GroupBackendConfig,
+    group_configs: Vec<BackendGroup>,
 }
 
 #[async_trait::async_trait]
 impl super::Backend for FileBackend {
-    fn new(
-        name: &str,
-        config: &BackendConfig,
-        group_name: &str,
-        group_config: &GroupBackendConfig,
-        tx: broadcast::Sender<super::BackendMessage>,
-    ) -> Self {
-        FileBackend {
+    fn new(name: &str, config: &BackendConfig, group_configs: &[BackendGroup]) -> Self {
+        Self {
             tx,
             file_path: config.token.clone(),
-            name: name.to_string(),
-            group_name: group_name.to_string(),
-            group_config: group_config.clone(),
+            name: name.to_owned(),
+            group_configs: group_configs.to_vec(),
         }
     }
 
-    async fn start(&self) {
+    async fn start(&self) -> Result<(), Box<dyn Error>> {
         debug!(
-            "FileBackend '{}' for group '{}' started, file: '{}'",
-            self.name, self.group_name, self.file_path
+            "FileBackend '{}' started, file: '{}'",
+            self.name, self.file_path
         );
 
         if !self.group_config.readonly {
@@ -48,8 +43,8 @@ impl super::Backend for FileBackend {
                 .create(true)
                 .append(true)
                 .open(&self.file_path)
-                .await
-                .unwrap();
+                .await?;
+
             crate::tasks::add_task(tokio::spawn(async move {
                 while let Ok(msg) = rx.recv().await {
                     let content = format!(
@@ -59,7 +54,9 @@ impl super::Backend for FileBackend {
                         msg.content.author.full_name(None),
                         msg.content.content
                     );
-                    file.write_all(content.as_bytes()).await.unwrap();
+                    if file.write_all(content.as_bytes()).await.is_err() {
+                        warn!("failed to write to file");
+                    }
                 }
             }));
         }
@@ -69,8 +66,7 @@ impl super::Backend for FileBackend {
             let file = tokio::fs::OpenOptions::new()
                 .read(true)
                 .open(&self.file_path)
-                .await
-                .unwrap();
+                .await?;
 
             let reader = tokio::io::BufReader::new(file);
             let mut lines = reader.lines();
@@ -81,11 +77,11 @@ impl super::Backend for FileBackend {
             crate::tasks::add_task(tokio::spawn(async move {
                 // wait for a second to let other backends start
                 sleep(Duration::from_secs(1)).await;
-                while let Some(line) = lines.next_line().await.unwrap() {
+                while let Ok(Some(line)) = lines.next_line().await {
                     let message = crate::core::Message::new(
                         crate::core::PartialAuthor {
                             display_name: None,
-                            username: "file_backend".to_string(),
+                            username: "file_backend".to_owned(),
                         }
                         .into(),
                         line,
@@ -99,9 +95,13 @@ impl super::Backend for FileBackend {
                         backend_name: name.clone(),
                         content: message,
                     };
-                    tx.send(backend_message).unwrap();
+                    if tx.send(backend_message).is_err() {
+                        warn!("failed to broadcast message");
+                    }
                 }
             }));
         }
+
+        Ok(())
     }
 }

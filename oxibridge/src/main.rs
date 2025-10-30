@@ -1,4 +1,6 @@
-use color_eyre::{eyre::Result, Section};
+use std::error::Error;
+
+use color_eyre::Section;
 use log::*;
 
 mod backends;
@@ -8,8 +10,10 @@ mod storage;
 mod tasks;
 pub use config::Config;
 
+use crate::backends::{BackendGroup, BackendMessage};
+
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<(), Box<dyn Error>> {
     setup_logging()?;
     info!("Hello, world!");
 
@@ -25,34 +29,33 @@ async fn main() -> Result<()> {
     let groups: Vec<_> = config
         .groups
         .iter()
-        .map(|(group_name, group_backend_config)| {
-            let (tx, _) = tokio::sync::broadcast::channel(32);
-
-            let backends: Vec<_> = config
-                .backends
-                .iter()
-                .map(|(name, backend)| {
-                    backends::get_backend(
-                        name,
-                        backend,
-                        group_name,
-                        &group_backend_config[name],
-                        tx.clone(),
-                    )
-                })
-                .collect();
-
-            (group_name, backends, tx)
+        .map(|(name, config)| {
+            let (tx, _) = tokio::sync::broadcast::channel::<BackendMessage>(32);
+            (name, config, tx)
         })
         .collect();
 
-    for (group_name, backends, _tx) in groups {
-        let group_name = group_name.clone();
-        info!("Bringing up backends for group '{}'", group_name);
+    let backends: Vec<_> = config
+        .backends
+        .iter()
+        .map(|(name, backend)| {
+            let backend_groups: Vec<_> = groups
+                .iter()
+                .filter(|(_, config, _)| config.contains_key(name))
+                .map(|(group_name, config, tx)| BackendGroup {
+                    name: group_name.to_string(),
+                    config: config[name].clone(),
+                    tx: tx.clone(),
+                })
+                .collect();
 
-        for backend in backends {
-            backend.start().await;
-        }
+            (name, backends::get_backend(name, backend, &backend_groups))
+        })
+        .collect();
+
+    for (name, backend) in backends {
+        debug!("Bringing up backend {name}");
+        backend.start().await?;
     }
 
     futures::future::join_all(tasks::get_tasks()).await;
@@ -60,7 +63,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-fn setup_logging() -> Result<()> {
+fn setup_logging() -> Result<(), Box<dyn Error>> {
     color_eyre::install()?;
     let mut builder = colog::default_builder();
     builder.filter(Some("oxibridge"), log::LevelFilter::Debug);
