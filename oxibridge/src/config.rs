@@ -72,9 +72,9 @@ pub struct GroupBackendConfig {
 
     // shared options
     #[serde(default)]
-    /// if true, the backend will not broadcast messages, only receive
+    /// if true, messages are only read from this chat and never written to it
     pub readonly: bool,
     #[serde(default)]
-    /// if true, the backend will not receive messages, only broadcast
+    /// if true, messages are only written to this chat and never read from it
     pub writeonly: bool,
 }
