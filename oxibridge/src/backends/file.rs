@@ -32,7 +32,7 @@ impl super::Backend for FileBackend {
 
         for group in &self.group_configs {
             if !group.config.readonly {
-                let mut rx = group.tx.subscribe();
+                let mut rx = group.subscribe();
                 let mut file = tokio::fs::OpenOptions::new()
                     .create(true)
                     .append(true)
@@ -40,7 +40,7 @@ impl super::Backend for FileBackend {
                     .await?;
 
                 crate::tasks::add_task(tokio::spawn(async move {
-                    while let Ok(msg) = rx.recv().await {
+                    while let Some(msg) = rx.recv().await {
                         let content = format!(
                             "({}, {}) {}: {}\n",
                             msg.group_name,
@@ -64,9 +64,7 @@ impl super::Backend for FileBackend {
 
                 let reader = tokio::io::BufReader::new(file);
                 let mut lines = reader.lines();
-                let group_name = group.name.clone();
-                let name = self.name.clone();
-                let tx = group.tx.clone();
+                let group = group.clone();
 
                 crate::tasks::add_task(tokio::spawn(async move {
                     // wait for a second to let other backends start
@@ -83,14 +81,7 @@ impl super::Backend for FileBackend {
                             None,
                             None,
                         );
-                        let backend_message = super::BackendMessage {
-                            group_name: group_name.clone(),
-                            backend_name: name.clone(),
-                            content: message,
-                        };
-                        if tx.send(backend_message).is_err() {
-                            warn!("failed to broadcast message");
-                        }
+                        group.send(message);
                     }
                 }))?;
             }

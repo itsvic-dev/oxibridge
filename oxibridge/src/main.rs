@@ -44,6 +44,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 .filter(|(_, config, _)| config.contains_key(name))
                 .map(|(group_name, config, tx)| BackendGroup {
                     name: (*group_name).clone(),
+                    backend_name: name.clone(),
                     config: config[name].clone(),
                     tx: tx.clone(),
                 })
