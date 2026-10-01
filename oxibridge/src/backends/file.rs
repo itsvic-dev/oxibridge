@@ -10,7 +10,7 @@ use tokio::{
 
 use crate::{
     backends::{BackendGroup, MessageEvent},
-    core::{Message, PartialAuthor},
+    core::{Author, Message, Source},
     database::{Database, Link},
 };
 
@@ -130,11 +130,11 @@ impl super::Backend for FileBackend {
                         };
                         let message = Message {
                             id,
-                            author: PartialAuthor {
+                            author: Author {
                                 display_name: None,
                                 username: "file_backend".to_owned(),
-                            }
-                            .into(),
+                                source: Source::File,
+                            },
                             content: line,
                             attachments: vec![],
                             in_reply_to: None,

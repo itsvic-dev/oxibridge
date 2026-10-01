@@ -11,6 +11,7 @@ use tokio::{
 };
 
 pub mod file;
+pub mod irc;
 
 /// Creates the backend described by `backend_config`.
 ///
@@ -25,6 +26,12 @@ pub fn get_backend(
     debug!("Loading backend '{name}'");
     Ok(match backend_config {
         BackendConfig::File(config) => Box::new(file::FileBackend::new(
+            name,
+            config,
+            group_configs,
+            database.clone(),
+        )?),
+        BackendConfig::Irc(config) => Box::new(irc::IrcBackend::new(
             name,
             config,
             group_configs,
