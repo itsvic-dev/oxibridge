@@ -6,7 +6,10 @@ use tokio::{
     time::sleep,
 };
 
-use crate::{backends::BackendGroup, config::BackendConfig};
+use crate::{
+    backends::{BackendGroup, MessageEvent},
+    config::BackendConfig,
+};
 
 pub struct FileBackend {
     file_path: String,
@@ -41,13 +44,22 @@ impl super::Backend for FileBackend {
 
                 crate::tasks::add_task(tokio::spawn(async move {
                     while let Some(msg) = rx.recv().await {
-                        let content = format!(
-                            "({}, {}) {}: {}\n",
-                            msg.group_name,
-                            msg.backend_name,
-                            msg.content.author.full_name(None),
-                            msg.content.content
-                        );
+                        let event = match msg.event {
+                            MessageEvent::Create(message) => format!(
+                                "{}: {}",
+                                message.author.full_name(None),
+                                message.content
+                            ),
+                            MessageEvent::Edit(message) => format!(
+                                "[edit #{}] {}: {}",
+                                message.id,
+                                message.author.full_name(None),
+                                message.content
+                            ),
+                            MessageEvent::Delete(id) => format!("[delete #{id}]"),
+                        };
+                        let content =
+                            format!("({}, {}) {event}\n", msg.group_name, msg.backend_name);
                         if file.write_all(content.as_bytes()).await.is_err() {
                             warn!("failed to write to file");
                         }
@@ -81,7 +93,7 @@ impl super::Backend for FileBackend {
                             None,
                             None,
                         );
-                        group.send(message);
+                        group.send(MessageEvent::Create(message));
                     }
                 }))?;
             }

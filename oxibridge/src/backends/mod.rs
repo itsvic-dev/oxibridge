@@ -37,12 +37,12 @@ pub struct BackendGroup {
 }
 
 impl BackendGroup {
-    /// Broadcasts a message to the other backends in this group.
-    pub fn send(&self, content: crate::core::Message) {
+    /// Broadcasts an event to the other backends in this group.
+    pub fn send(&self, event: MessageEvent) {
         let message = BackendMessage {
             group_name: self.name.clone(),
             backend_name: self.backend_name.clone(),
-            content,
+            event,
         };
         if self.tx.send(message).is_err() {
             warn!("group '{}' has no receivers", self.name);
@@ -88,5 +88,14 @@ impl GroupReceiver {
 pub struct BackendMessage {
     pub group_name: String,
     pub backend_name: String,
-    pub content: crate::core::Message,
+    pub event: MessageEvent,
+}
+
+#[derive(Clone, Debug)]
+pub enum MessageEvent {
+    Create(crate::core::Message),
+    /// Carries the full new message. Its ID is the ID of the edited message.
+    Edit(crate::core::Message),
+    /// Carries the ID of the deleted message.
+    Delete(u64),
 }
