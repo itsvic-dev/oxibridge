@@ -32,6 +32,7 @@ pkgs.testers.nixosTest {
   };
 
   testScript = ''
+    machine.wait_for_unit("multi-user.target")
     machine.wait_until_succeeds("sha256sum /var/lib/oxibridge/dst.txt | grep 2edc4d35d0fcdb59b8b88a0e6140e01f207bea18a52a11c3a55d06c6d409aac2", timeout=60)
   '';
 }
