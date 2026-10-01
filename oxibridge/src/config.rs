@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
+use color_eyre::{Section, eyre::WrapErr};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde_yaml::Value;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
@@ -13,6 +15,25 @@ pub struct Config {
 }
 
 impl Config {
+    /// Reads the YAML files in `paths` and deep-merges them in order.
+    /// Values from later files override values from earlier ones.
+    ///
+    /// # Errors
+    /// Returns an error if a file cannot be read or the merged config is invalid.
+    pub async fn load(paths: &[&str]) -> color_eyre::Result<Self> {
+        let mut merged = Value::Null;
+        for path in paths {
+            let file = tokio::fs::read(path)
+                .await
+                .wrap_err_with(|| format!("failed to read config file '{path}'"))
+                .suggestion("Create a `config.yml` file and fill it out. Look at `config.example.yml` for reference.")?;
+            let value = serde_yaml::from_slice(&file)
+                .wrap_err_with(|| format!("failed to parse config file '{path}'"))?;
+            merge(&mut merged, value);
+        }
+        Ok(serde_yaml::from_value(merged)?)
+    }
+
     /// Checks the parts of the config that serde cannot check.
     ///
     /// # Errors
@@ -24,6 +45,23 @@ impl Config {
             }
         }
         Ok(())
+    }
+}
+
+fn merge(base: &mut Value, other: Value) {
+    match (base, other) {
+        (_, Value::Null) => {}
+        (Value::Mapping(base), Value::Mapping(other)) => {
+            for (key, value) in other {
+                match base.get_mut(&key) {
+                    Some(existing) => merge(existing, value),
+                    None => {
+                        base.insert(key, value);
+                    }
+                }
+            }
+        }
+        (base, other) => *base = other,
     }
 }
 
@@ -92,7 +130,37 @@ impl GroupBackendConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::Config;
+    use super::{Config, merge};
+    use serde_yaml::Value;
+
+    fn merged(files: &[&str]) -> Result<Value, serde_yaml::Error> {
+        let mut base = Value::Null;
+        for file in files {
+            merge(&mut base, serde_yaml::from_str(file)?);
+        }
+        Ok(base)
+    }
+
+    #[test]
+    fn merges_nested_mappings_from_both_files() -> Result<(), serde_yaml::Error> {
+        let result = merged(&["a: { x: 1 }", "a: { y: 2 }"])?;
+        assert_eq!(result, serde_yaml::from_str::<Value>("a: { x: 1, y: 2 }")?);
+        Ok(())
+    }
+
+    #[test]
+    fn later_files_override_earlier_values() -> Result<(), serde_yaml::Error> {
+        let result = merged(&["a: { x: 1, list: [1, 2] }", "a: { x: 2, list: [3] }"])?;
+        assert_eq!(result, serde_yaml::from_str::<Value>("a: { x: 2, list: [3] }")?);
+        Ok(())
+    }
+
+    #[test]
+    fn empty_files_change_nothing() -> Result<(), serde_yaml::Error> {
+        let result = merged(&["a: 1", ""])?;
+        assert_eq!(result, serde_yaml::from_str::<Value>("a: 1")?);
+        Ok(())
+    }
 
     #[test]
     fn accepts_groups_with_known_backends() -> Result<(), serde_yaml::Error> {
