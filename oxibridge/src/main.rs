@@ -6,6 +6,7 @@ use tokio::task::JoinSet;
 mod backends;
 mod config;
 mod core;
+mod database;
 mod storage;
 pub use config::Config;
 
