@@ -158,8 +158,17 @@ async fn receive(database: &Database, channels: &[Channel], message: &IrcMessage
         return;
     };
 
+    let author = Author {
+        display_name: Some(nickname.to_owned()),
+        username: nickname.to_owned(),
+        source: Source::Irc,
+    };
+
     for channel in channels.iter().filter(|c| c.name.eq_ignore_ascii_case(target)) {
-        let id = match database.create_message(&channel.group.name).await {
+        let id = match database
+            .create_message(&channel.group.name, &(&author).into())
+            .await
+        {
             Ok(id) => id,
             Err(e) => {
                 warn!("failed to record message from '{target}': {e}");
@@ -168,11 +177,7 @@ async fn receive(database: &Database, channels: &[Channel], message: &IrcMessage
         };
         channel.group.send(MessageEvent::Create(Message {
             id,
-            author: Author {
-                display_name: Some(nickname.to_owned()),
-                username: nickname.to_owned(),
-                source: Source::Irc,
-            },
+            author: author.clone(),
             content: content.clone(),
             attachments: vec![],
             in_reply_to: None,
