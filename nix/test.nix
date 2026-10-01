@@ -6,25 +6,26 @@ pkgs.nixosTest {
     imports = [ self.nixosModules.oxibridge ];
     services.oxibridge = {
       enable = true;
-      configFile = pkgs.writeText "config.yml" ''
-        backends:
-          src:
-            # the "file" backend reads lines from a file and sends them as messages
-            # and writes lines to a file when receiving messages
-            kind: file
-            path: ${./src.txt}
+      settings = {
+        backends.src = {
+          kind = "file";
+          path = "${./src.txt}";
+        };
 
-          dst:
-            kind: file
-            path: /var/lib/oxibridge/dst.txt
+        groups.test = {
+          src.readonly = true;
+          dst.writeonly = true;
+        };
+      };
 
-        groups:
-          test:
-            src:
-              readonly: true
+      secretFiles = [
+        (pkgs.writeText "secrets.yml" ''
+          backends:
             dst:
-              writeonly: true
-      '';
+              kind: file
+              path: /var/lib/oxibridge/dst.txt
+        '')
+      ];
     };
 
     systemd.services.oxibridge.serviceConfig.StateDirectory = "oxibridge";
