@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "INSERT INTO messages (group_name) VALUES (?) RETURNING id AS \"id!\"",
+  "query": "INSERT INTO messages (group_name, author_username, author_display_name, author_source)\n            VALUES (?, ?, ?, ?) RETURNING id AS \"id!\"",
   "describe": {
     "columns": [
       {
@@ -16,11 +16,11 @@
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 4
     },
     "nullable": [
       false
     ]
   },
-  "hash": "5b2eaf405ab3f72af7ab5473f4ee5e232362896f9efe2690765ba79d48dc9018"
+  "hash": "11fa6a5b232eba6ef3f530bb0ef0cb613d7f3563c364c2502c1bbd3cd210aef8"
 }

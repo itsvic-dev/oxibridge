@@ -121,7 +121,12 @@ impl super::Backend for FileBackend {
                             chat: chat.clone(),
                             platform_id: line_number.to_string(),
                         };
-                        let id = match record(&database, &group.name, &link).await {
+                        let author = Author {
+                            display_name: None,
+                            username: "file_backend".to_owned(),
+                            source: Source::File,
+                        };
+                        let id = match record(&database, &group.name, &author, &link).await {
                             Ok(id) => id,
                             Err(e) => {
                                 warn!("failed to record line {line_number}: {e}");
@@ -130,11 +135,7 @@ impl super::Backend for FileBackend {
                         };
                         let message = Message {
                             id,
-                            author: Author {
-                                display_name: None,
-                                username: "file_backend".to_owned(),
-                                source: Source::File,
-                            },
+                            author,
                             content: line,
                             attachments: vec![],
                             in_reply_to: None,
@@ -150,8 +151,13 @@ impl super::Backend for FileBackend {
     }
 }
 
-async fn record(database: &Database, group: &str, link: &Link) -> sqlx::Result<i64> {
-    let id = database.create_message(group).await?;
+async fn record(
+    database: &Database,
+    group: &str,
+    author: &Author,
+    link: &Link,
+) -> sqlx::Result<i64> {
+    let id = database.create_message(group, &author.into()).await?;
     database.add_link(id, link).await?;
     Ok(id)
 }

@@ -14,6 +14,13 @@ impl Source {
             Self::Irc => "irc",
         }
     }
+
+    /// The inverse of [`Self::tag`].
+    pub fn from_tag(tag: &str) -> Option<Self> {
+        [Self::File, Self::Irc]
+            .into_iter()
+            .find(|source| source.tag() == tag)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -38,7 +45,7 @@ impl Author {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartialAuthor {
     pub display_name: Option<String>,
     pub username: String,

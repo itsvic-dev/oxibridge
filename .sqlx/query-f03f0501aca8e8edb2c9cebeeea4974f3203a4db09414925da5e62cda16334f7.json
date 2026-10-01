@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT author_username, author_display_name, author_source FROM messages WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "author_username",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "messages",
+            "name": "author_username"
+          }
+        }
+      },
+      {
+        "name": "author_display_name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "messages",
+            "name": "author_display_name"
+          }
+        }
+      },
+      {
+        "name": "author_source",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "messages",
+            "name": "author_source"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "f03f0501aca8e8edb2c9cebeeea4974f3203a4db09414925da5e62cda16334f7"
+}

@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT message_id, chat FROM message_links WHERE backend = ? AND platform_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "message_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "message_links",
+            "name": "message_id"
+          }
+        }
+      },
+      {
+        "name": "chat",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "message_links",
+            "name": "chat"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "44c10dd07a169dae23da3056c1411d295679d59e8719b3de5d4b4e750494459b"
+}
