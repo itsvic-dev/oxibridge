@@ -9,6 +9,7 @@ pub enum Source {
     File,
     Irc,
     Telegram,
+    Discord,
 }
 
 impl Source {
@@ -18,12 +19,13 @@ impl Source {
             Self::File => "file",
             Self::Irc => "irc",
             Self::Telegram => "tg",
+            Self::Discord => "dc",
         }
     }
 
     /// The inverse of [`Self::tag`].
     pub fn from_tag(tag: &str) -> Option<Self> {
-        [Self::File, Self::Irc, Self::Telegram]
+        [Self::File, Self::Irc, Self::Telegram, Self::Discord]
             .into_iter()
             .find(|source| source.tag() == tag)
     }

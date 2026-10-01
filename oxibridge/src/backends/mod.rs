@@ -13,6 +13,7 @@ use tokio::{
 pub mod file;
 pub mod irc;
 pub mod telegram;
+pub mod discord;
 
 /// Creates the backend described by `backend_config`.
 ///
@@ -39,6 +40,12 @@ pub fn get_backend(
             database.clone(),
         )?),
         BackendConfig::Telegram(config) => Box::new(telegram::TelegramBackend::new(
+            name,
+            config,
+            group_configs,
+            database.clone(),
+        )?),
+        BackendConfig::Discord(config) => Box::new(discord::DiscordBackend::new(
             name,
             config,
             group_configs,

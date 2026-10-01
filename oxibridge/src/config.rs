@@ -121,6 +121,7 @@ pub enum BackendConfig {
     File(crate::backends::file::Config),
     Irc(crate::backends::irc::Config),
     Telegram(crate::backends::telegram::Config),
+    Discord(crate::backends::discord::Config),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
