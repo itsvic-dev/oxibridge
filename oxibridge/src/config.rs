@@ -12,6 +12,21 @@ pub struct Config {
     pub groups: HashMap<String, HashMap<String, GroupBackendConfig>>,
 }
 
+impl Config {
+    /// Checks the parts of the config that serde cannot check.
+    ///
+    /// # Errors
+    /// Returns an error if a group uses a backend that is not defined.
+    pub fn validate(&self) -> Result<(), String> {
+        for (group_name, group) in &self.groups {
+            if let Some(name) = group.keys().find(|name| !self.backends.contains_key(*name)) {
+                return Err(format!("group '{group_name}' uses unknown backend '{name}'"));
+            }
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct GlobalSection {
     pub r2: Option<R2Config>,
@@ -72,5 +87,40 @@ impl GroupBackendConfig {
     /// Returns an error if the options do not match `T`.
     pub fn options<T: DeserializeOwned>(&self) -> Result<T, serde_yaml::Error> {
         serde_yaml::from_value(serde_yaml::Value::Mapping(self.options.clone()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Config;
+
+    #[test]
+    fn accepts_groups_with_known_backends() -> Result<(), serde_yaml::Error> {
+        let config: Config = serde_yaml::from_str(
+            "
+            backends:
+              a: { kind: file, path: a.txt }
+            groups:
+              g:
+                a: { readonly: true }
+            ",
+        )?;
+        assert_eq!(config.validate(), Ok(()));
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_groups_with_unknown_backends() -> Result<(), serde_yaml::Error> {
+        let config: Config = serde_yaml::from_str(
+            "
+            backends:
+              a: { kind: file, path: a.txt }
+            groups:
+              g:
+                b: {}
+            ",
+        )?;
+        assert!(config.validate().is_err());
+        Ok(())
     }
 }

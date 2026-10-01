@@ -23,8 +23,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "Create a `config.yml` file and fill it out. Look at `config.example.yml` for reference.",
     )?)?;
 
-    // TODO: validate config
     let config: Config = serde_yaml::from_str(&config)?;
+    config.validate()?;
 
     let groups: Vec<_> = config
         .groups
