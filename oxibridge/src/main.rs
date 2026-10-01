@@ -6,10 +6,14 @@ use tokio::task::JoinSet;
 mod backends;
 mod config;
 mod core;
+mod database;
 mod storage;
 pub use config::Config;
 
-use crate::backends::{BackendGroup, BackendMessage};
+use crate::{
+    backends::{BackendGroup, BackendMessage},
+    database::Database,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -29,6 +33,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         })
         .collect();
 
+    let database = Database::open(&config.global.database).await?;
+
     let backends = config
         .backends
         .iter()
@@ -44,7 +50,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 })
                 .collect();
 
-            Ok((name, backends::get_backend(name, backend, &backend_groups)?))
+            Ok((
+                name,
+                backends::get_backend(name, backend, &backend_groups, &database)?,
+            ))
         })
         .collect::<Result<Vec<_>, _>>()?;
 

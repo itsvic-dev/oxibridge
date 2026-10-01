@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use color_eyre::{Section, eyre::WrapErr};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -65,11 +65,28 @@ fn merge(base: &mut Value, other: Value) {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct GlobalSection {
     pub r2: Option<R2Config>,
     #[serde(default)]
     pub cache: CacheConfig,
+    /// Path of the SQLite database. Created if it does not exist.
+    #[serde(default = "default_database")]
+    pub database: PathBuf,
+}
+
+impl Default for GlobalSection {
+    fn default() -> Self {
+        Self {
+            r2: None,
+            cache: CacheConfig::default(),
+            database: default_database(),
+        }
+    }
+}
+
+fn default_database() -> PathBuf {
+    PathBuf::from("oxibridge.db")
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -1,6 +1,9 @@
 use std::error::Error;
 
-use crate::config::{BackendConfig, GroupBackendConfig};
+use crate::{
+    config::{BackendConfig, GroupBackendConfig},
+    database::Database,
+};
 use log::{debug, warn};
 use tokio::{
     sync::broadcast::{self, error::RecvError},
@@ -17,12 +20,16 @@ pub fn get_backend(
     name: &str,
     backend_config: &BackendConfig,
     group_configs: &[BackendGroup],
+    database: &Database,
 ) -> Result<Box<dyn self::Backend>, Box<dyn Error>> {
     debug!("Loading backend '{name}'");
     Ok(match backend_config {
-        BackendConfig::File(config) => {
-            Box::new(file::FileBackend::new(name, config, group_configs)?)
-        }
+        BackendConfig::File(config) => Box::new(file::FileBackend::new(
+            name,
+            config,
+            group_configs,
+            database.clone(),
+        )?),
     })
 }
 
@@ -102,5 +109,5 @@ pub enum MessageEvent {
     /// Carries the full new message. Its ID is the ID of the edited message.
     Edit(crate::core::Message),
     /// Carries the ID of the deleted message.
-    Delete(u64),
+    Delete(i64),
 }

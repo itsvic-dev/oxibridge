@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT backend, chat, platform_id FROM message_links WHERE message_id = ? AND backend = ? ORDER BY rowid",
+  "describe": {
+    "columns": [
+      {
+        "name": "backend",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "message_links",
+            "name": "backend"
+          }
+        }
+      },
+      {
+        "name": "chat",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "message_links",
+            "name": "chat"
+          }
+        }
+      },
+      {
+        "name": "platform_id",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "message_links",
+            "name": "platform_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1f90812adcac88bad729ff438ed5d885e76c421deb8b7806a7788a0d6cee62c9"
+}

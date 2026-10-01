@@ -2,7 +2,7 @@ self:
 { config, lib, pkgs, ... }:
 let
   cfg = config.services.oxibridge;
-  package = self.packages.${pkgs.system}.default;
+  package = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
   settingsFormat = pkgs.formats.yaml { };
   settingsFile = settingsFormat.generate "oxibridge.yml" cfg.settings;
   secretNames = lib.imap0 (i: _: "secret-${toString i}") cfg.secretFiles;
@@ -39,6 +39,9 @@ in {
   };
 
   config = lib.mkIf cfg.enable {
+    services.oxibridge.settings.global.database =
+      lib.mkDefault "/var/lib/oxibridge/oxibridge.db";
+
     systemd.services.oxibridge = {
       after = [ "network.target" "network-online.target" ];
       wants = [ "network-online.target" ];
@@ -49,6 +52,7 @@ in {
         ExecStart = lib.getExe package;
         Restart = "on-failure";
         DynamicUser = true;
+        StateDirectory = "oxibridge";
 
         LoadCredential =
           lib.zipListsWith (name: path: "${name}:${path}") secretNames
