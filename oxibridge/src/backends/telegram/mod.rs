@@ -9,6 +9,7 @@ use grammers_client::{
         Session,
         types::{PeerId, PeerKind, PeerRef},
     },
+    tl,
     update::{MessageDeletion, Update},
 };
 use log::{debug, warn};
@@ -22,11 +23,12 @@ use crate::{
 };
 
 mod markdown;
+mod media;
 mod session;
 
 use session::StoredSession;
 
-type TaskResult = Result<(), Box<dyn Error + Send + Sync>>;
+type TaskResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
@@ -287,7 +289,11 @@ async fn receive(context: &Context, chats: &[Chat], update: Update) -> TaskResul
 }
 
 async fn receive_new(context: &Context, chats: &[Chat], message: &TgMessage) -> TaskResult {
-    if message.text().is_empty() {
+    let targets: Vec<_> = chats
+        .iter()
+        .filter(|c| c.peer == message.peer_id())
+        .collect();
+    if targets.is_empty() {
         return Ok(());
     }
     let link = link(context, message.peer_id(), message.id());
@@ -296,15 +302,18 @@ async fn receive_new(context: &Context, chats: &[Chat], message: &TgMessage) -> 
         return Ok(());
     }
 
-    let author = author_of(message);
-    for chat in chats.iter().filter(|c| c.peer == message.peer_id()) {
+    let core = to_core(context, message, true).await?;
+    if core.content.is_empty() && core.attachments.is_empty() {
+        return Ok(());
+    }
+    for chat in targets {
         let id = context
             .database
-            .create_message(&chat.group.name, &(&author).into())
+            .create_message(&chat.group.name, &(&core.author).into())
             .await?;
         context.database.add_link(id, &link).await?;
-        let core = to_core(context, message, id, author.clone()).await?;
-        chat.group.send(MessageEvent::Create(core));
+        chat.group
+            .send(MessageEvent::Create(Message { id, ..core.clone() }));
     }
     Ok(())
 }
@@ -318,9 +327,11 @@ async fn receive_edit(context: &Context, chats: &[Chat], message: &TgMessage) ->
         return Ok(());
     };
 
+    // edits on the other side only change the text, so the media is not downloaded again
+    let core = to_core(context, message, false).await?;
     for chat in chats.iter().filter(|c| c.peer == message.peer_id()) {
-        let core = to_core(context, message, id, author_of(message)).await?;
-        chat.group.send(MessageEvent::Edit(core));
+        chat.group
+            .send(MessageEvent::Edit(Message { id, ..core.clone() }));
     }
     Ok(())
 }
@@ -363,12 +374,31 @@ async fn receive_delete(
     Ok(())
 }
 
-async fn to_core(
-    context: &Context,
-    message: &TgMessage,
-    id: i64,
-    author: Author,
-) -> sqlx::Result<Message> {
+/// Converts `message` to a core message, with ID 0 for the caller to replace.
+async fn to_core(context: &Context, message: &TgMessage, download: bool) -> TaskResult<Message> {
+    let author = author_of(message);
+    let media = media::incoming(
+        &context.client,
+        message,
+        &author.full_name(Some(0)),
+        download,
+    )
+    .await?;
+    let text = markdown::to_markdown(
+        message.text(),
+        message.fmt_entities().map_or(&[], Vec::as_slice),
+    );
+    let content = [
+        forward_header(context, message).await,
+        media.label,
+        Some(text),
+    ]
+    .into_iter()
+    .flatten()
+    .filter(|part| !part.is_empty())
+    .collect::<Vec<_>>()
+    .join("\n");
+
     let in_reply_to = match message.reply_to_message_id() {
         Some(reply) => {
             context
@@ -384,24 +414,47 @@ async fn to_core(
     };
 
     Ok(Message {
-        id,
+        id: 0,
         author,
-        content: markdown::to_markdown(
-            message.text(),
-            message.fmt_entities().map_or(&[], Vec::as_slice),
-        ),
-        attachments: vec![],
+        content,
+        attachments: media.attachments,
         in_reply_to,
         reply_author,
     })
 }
 
-fn author_of(message: &TgMessage) -> Author {
-    let peer = message.sender().or_else(|| message.peer());
-    let display_name = peer.and_then(|peer| match peer {
+async fn forward_header(context: &Context, message: &TgMessage) -> Option<String> {
+    let tl::enums::MessageFwdHeader::Header(header) = message.forward_header()?;
+    let name = match (header.from_name, header.from_id) {
+        (Some(name), _) => Some(name),
+        (None, Some(peer)) => {
+            let peer = peer_ref(context, PeerId::from(peer)).await;
+            context
+                .client
+                .resolve_peer(peer)
+                .await
+                .ok()
+                .and_then(|peer| peer_name(&peer))
+        }
+        (None, None) => None,
+    };
+    let name = name.unwrap_or_else(|| "someone".to_owned());
+    Some(match header.post_author {
+        Some(signature) => format!("*Forwarded from {name} ({signature})*"),
+        None => format!("*Forwarded from {name}*"),
+    })
+}
+
+fn peer_name(peer: &Peer) -> Option<String> {
+    match peer {
         Peer::User(user) => Some(user.full_name()),
         peer => peer.name().map(str::to_owned),
-    });
+    }
+}
+
+fn author_of(message: &TgMessage) -> Author {
+    let peer = message.sender().or_else(|| message.peer());
+    let display_name = peer.and_then(peer_name);
     let username = peer.and_then(Peer::username).map_or_else(
         || message.sender_id().unwrap_or(message.peer_id()).to_string(),
         str::to_owned,
