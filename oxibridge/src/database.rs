@@ -45,6 +45,17 @@ impl Database {
         Ok(Self { pool })
     }
 
+    /// Opens an empty database that only lives as long as the returned value.
+    #[cfg(test)]
+    pub async fn in_memory() -> sqlx::Result<Self> {
+        // every connection to an in-memory database gets its own database, so keep exactly one alive
+        let pool_options = SqlitePoolOptions::new()
+            .max_connections(1)
+            .idle_timeout(None)
+            .max_lifetime(None);
+        Self::connect(pool_options, "sqlite::memory:".parse()?).await
+    }
+
     /// Creates a core message by `author` in `group` and returns its ID.
     ///
     /// # Errors
@@ -154,6 +165,37 @@ impl Database {
         Ok(rows.into_iter().map(|row| (row.message_id, row.chat)).collect())
     }
 
+    /// Returns all state values that `backend` stored with [`Self::set_state`], as `(key, value)` pairs.
+    ///
+    /// # Errors
+    /// Returns an error if the query fails.
+    pub async fn state(&self, backend: &str) -> sqlx::Result<Vec<(String, String)>> {
+        let rows = sqlx::query!(
+            "SELECT key, value FROM backend_state WHERE backend = ? ORDER BY key",
+            backend
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(|row| (row.key, row.value)).collect())
+    }
+
+    /// Stores `value` under `key` for `backend`, replacing any earlier value.
+    ///
+    /// # Errors
+    /// Returns an error if the query fails.
+    pub async fn set_state(&self, backend: &str, key: &str, value: &str) -> sqlx::Result<()> {
+        sqlx::query!(
+            "INSERT INTO backend_state (backend, key, value) VALUES (?, ?, ?)
+            ON CONFLICT (backend, key) DO UPDATE SET value = excluded.value",
+            backend,
+            key,
+            value
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     /// Forgets the platform messages on `backend` for core message `message_id`.
     ///
     /// # Errors
@@ -172,10 +214,6 @@ impl Database {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
-    use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
-
     use super::{Database, Link};
     use crate::core::{PartialAuthor, Source};
 
@@ -188,16 +226,7 @@ mod tests {
     }
 
     async fn database() -> sqlx::Result<Database> {
-        // every connection to an in-memory database gets its own database, so keep exactly one alive
-        let pool_options = SqlitePoolOptions::new()
-            .max_connections(1)
-            .idle_timeout(None)
-            .max_lifetime(None);
-        Database::connect(
-            pool_options,
-            SqliteConnectOptions::from_str("sqlite::memory:")?,
-        )
-        .await
+        Database::in_memory().await
     }
 
     fn link(backend: &str, chat: &str, platform_id: &str) -> Link {
@@ -283,6 +312,19 @@ mod tests {
         assert_eq!(
             db.find_messages_in_any_chat("tg", "5").await?,
             vec![(id, "-100".to_owned())]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn keeps_the_latest_state_value_per_backend() -> sqlx::Result<()> {
+        let db = database().await?;
+        db.set_state("tg", "home_dc", "1").await?;
+        db.set_state("tg", "home_dc", "2").await?;
+        db.set_state("other", "home_dc", "3").await?;
+        assert_eq!(
+            db.state("tg").await?,
+            vec![("home_dc".to_owned(), "2".to_owned())]
         );
         Ok(())
     }
