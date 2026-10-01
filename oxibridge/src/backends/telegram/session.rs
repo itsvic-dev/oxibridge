@@ -160,10 +160,7 @@ impl Session for StoredSession {
 
     fn set_update_state(&self, update: UpdateState) -> BoxFuture<'_, Result<(), SessionError>> {
         Box::pin(async move {
-            self.memory
-                .set_update_state(update)
-                .await
-                .map_err(memory)?;
+            self.memory.set_update_state(update).await.map_err(memory)?;
             let state = self.memory.updates_state().await.map_err(memory)?;
             self.save(UPDATES_STATE, &state).await
         })
