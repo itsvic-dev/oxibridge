@@ -1,4 +1,3 @@
-use std::sync::atomic::{AtomicU64, Ordering};
 
 #[derive(Debug, Clone)]
 pub struct Author {
@@ -65,30 +64,10 @@ pub struct Message {
     pub author: Author,
     pub content: String,
     pub attachments: Vec<Attachment>,
-    pub id: u64,
-    pub in_reply_to: Option<u64>,
+    /// Core message ID from [`crate::database::Database::create_message`].
+    pub id: i64,
+    pub in_reply_to: Option<i64>,
     pub reply_author: Option<PartialAuthor>,
-}
-
-static NEXT_ID: AtomicU64 = AtomicU64::new(0);
-
-impl Message {
-    pub fn new(
-        author: Author,
-        content: String,
-        attachments: Vec<Attachment>,
-        in_reply_to: Option<u64>,
-        reply_author: Option<PartialAuthor>,
-    ) -> Self {
-        Self {
-            id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
-            author,
-            content,
-            attachments,
-            in_reply_to,
-            reply_author,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
