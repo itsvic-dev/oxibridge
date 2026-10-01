@@ -2,7 +2,7 @@ self:
 { config, lib, pkgs, ... }:
 let
   cfg = config.services.oxibridge;
-  package = self.packages.${pkgs.system}.default;
+  package = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
   settingsFormat = pkgs.formats.yaml { };
   settingsFile = settingsFormat.generate "oxibridge.yml" cfg.settings;
   secretNames = lib.imap0 (i: _: "secret-${toString i}") cfg.secretFiles;

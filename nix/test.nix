@@ -1,5 +1,5 @@
 { self, pkgs }:
-pkgs.nixosTest {
+pkgs.testers.nixosTest {
   name = "oxibridge-test";
 
   nodes.machine = { config, pkgs, ... }: {
