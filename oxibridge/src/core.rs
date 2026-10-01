@@ -1,7 +1,4 @@
-use std::sync::LazyLock;
-
-use async_tempfile::TempFile;
-use tokio::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 #[derive(Debug, Clone)]
 pub struct Author {
@@ -73,22 +70,18 @@ pub struct Message {
     pub reply_author: Option<PartialAuthor>,
 }
 
-static NEXT_ID: LazyLock<Mutex<u64>> = LazyLock::new(|| Mutex::new(0));
+static NEXT_ID: AtomicU64 = AtomicU64::new(0);
 
 impl Message {
-    pub async fn new(
+    pub fn new(
         author: Author,
         content: String,
         attachments: Vec<Attachment>,
         in_reply_to: Option<u64>,
         reply_author: Option<PartialAuthor>,
     ) -> Self {
-        let mut next_id = NEXT_ID.lock().await;
-        let id = *next_id;
-        *next_id += 1;
-
         Self {
-            id,
+            id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
             author,
             content,
             attachments,

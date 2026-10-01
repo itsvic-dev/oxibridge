@@ -1,10 +1,10 @@
 backends:
   src:
     kind: file
-    token: ./nix/src.txt
+    path: ./nix/src.txt
   dst:
     kind: file
-    token: /tmp/dst.txt
+    path: /tmp/dst.txt
 
 groups:
   test:

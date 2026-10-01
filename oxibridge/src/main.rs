@@ -1,13 +1,13 @@
 use std::error::Error;
 
 use color_eyre::Section;
-use log::{debug, info};
+use log::{debug, error, info};
+use tokio::task::JoinSet;
 
 mod backends;
 mod config;
 mod core;
 mod storage;
-mod tasks;
 pub use config::Config;
 
 use crate::backends::{BackendGroup, BackendMessage};
@@ -23,8 +23,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "Create a `config.yml` file and fill it out. Look at `config.example.yml` for reference.",
     )?)?;
 
-    // TODO: validate config
     let config: Config = serde_yaml::from_str(&config)?;
+    config.validate()?;
 
     let groups: Vec<_> = config
         .groups
@@ -35,33 +35,39 @@ async fn main() -> Result<(), Box<dyn Error>> {
         })
         .collect();
 
-    let backends: Vec<_> = config
+    let backends = config
         .backends
         .iter()
-        .map(|(name, backend)| {
+        .map(|(name, backend)| -> Result<_, Box<dyn Error>> {
             let backend_groups: Vec<_> = groups
                 .iter()
                 .filter(|(_, config, _)| config.contains_key(name))
                 .map(|(group_name, config, tx)| BackendGroup {
                     name: (*group_name).clone(),
+                    backend_name: name.clone(),
                     config: config[name].clone(),
                     tx: tx.clone(),
                 })
                 .collect();
 
-            (name, backends::get_backend(name, backend, &backend_groups))
+            Ok((name, backends::get_backend(name, backend, &backend_groups)?))
         })
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     // we don't need to keep groups around anymore, drop them so oxibridge can cleanly shut down once all group senders get dropped
     std::mem::drop(groups);
 
+    let mut tasks = JoinSet::new();
     for (name, backend) in backends {
         debug!("Bringing up backend {name}");
-        backend.start().await?;
+        backend.start(&mut tasks).await?;
     }
 
-    futures::future::join_all(tasks::get_tasks()?).await;
+    while let Some(result) = tasks.join_next().await {
+        if let Err(e) = result {
+            error!("backend task failed: {e}");
+        }
+    }
 
     Ok(())
 }

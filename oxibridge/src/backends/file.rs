@@ -1,58 +1,92 @@
-use std::{error::Error, time::Duration};
+use std::{error::Error, path::PathBuf, time::Duration};
 
 use log::{debug, warn};
+use serde::{Deserialize, Serialize};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt},
+    task::JoinSet,
     time::sleep,
 };
 
-use crate::{backends::BackendGroup, config::BackendConfig};
+use crate::backends::{BackendGroup, MessageEvent};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Config {
+    pub path: PathBuf,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GroupConfig {}
 
 pub struct FileBackend {
-    file_path: String,
+    file_path: PathBuf,
     name: String,
     group_configs: Vec<BackendGroup>,
 }
 
-#[async_trait::async_trait]
-impl super::Backend for FileBackend {
-    fn new(name: &str, config: &BackendConfig, group_configs: &[BackendGroup]) -> Self {
-        Self {
-            file_path: config.token.clone(),
+impl FileBackend {
+    pub fn new(
+        name: &str,
+        config: &Config,
+        group_configs: &[BackendGroup],
+    ) -> Result<Self, Box<dyn Error>> {
+        for group in group_configs {
+            group
+                .config
+                .options::<GroupConfig>()
+                .map_err(|e| format!("backend '{name}' in group '{}': {e}", group.name))?;
+        }
+
+        Ok(Self {
+            file_path: config.path.clone(),
             name: name.to_owned(),
             group_configs: group_configs.to_vec(),
-        }
+        })
     }
+}
 
-    async fn start(&self) -> Result<(), Box<dyn Error>> {
+#[async_trait::async_trait]
+impl super::Backend for FileBackend {
+    async fn start(&self, tasks: &mut JoinSet<()>) -> Result<(), Box<dyn Error>> {
         debug!(
             "FileBackend '{}' started, file: '{}'",
-            self.name, self.file_path
+            self.name,
+            self.file_path.display()
         );
 
         for group in &self.group_configs {
             if !group.config.readonly {
-                let mut rx = group.tx.subscribe();
+                let mut rx = group.subscribe();
                 let mut file = tokio::fs::OpenOptions::new()
                     .create(true)
                     .append(true)
                     .open(&self.file_path)
                     .await?;
 
-                crate::tasks::add_task(tokio::spawn(async move {
-                    while let Ok(msg) = rx.recv().await {
-                        let content = format!(
-                            "({}, {}) {}: {}\n",
-                            msg.group_name,
-                            msg.backend_name,
-                            msg.content.author.full_name(None),
-                            msg.content.content
-                        );
+                tasks.spawn(async move {
+                    while let Some(msg) = rx.recv().await {
+                        let event = match msg.event {
+                            MessageEvent::Create(message) => format!(
+                                "{}: {}",
+                                message.author.full_name(None),
+                                message.content
+                            ),
+                            MessageEvent::Edit(message) => format!(
+                                "[edit #{}] {}: {}",
+                                message.id,
+                                message.author.full_name(None),
+                                message.content
+                            ),
+                            MessageEvent::Delete(id) => format!("[delete #{id}]"),
+                        };
+                        let content =
+                            format!("({}, {}) {event}\n", msg.group_name, msg.backend_name);
                         if file.write_all(content.as_bytes()).await.is_err() {
                             warn!("failed to write to file");
                         }
                     }
-                }))?;
+                });
             }
 
             if !group.config.writeonly {
@@ -64,11 +98,9 @@ impl super::Backend for FileBackend {
 
                 let reader = tokio::io::BufReader::new(file);
                 let mut lines = reader.lines();
-                let group_name = group.name.clone();
-                let name = self.name.clone();
-                let tx = group.tx.clone();
+                let group = group.clone();
 
-                crate::tasks::add_task(tokio::spawn(async move {
+                tasks.spawn(async move {
                     // wait for a second to let other backends start
                     sleep(Duration::from_secs(1)).await;
                     while let Ok(Some(line)) = lines.next_line().await {
@@ -82,18 +114,10 @@ impl super::Backend for FileBackend {
                             vec![],
                             None,
                             None,
-                        )
-                        .await;
-                        let backend_message = super::BackendMessage {
-                            group_name: group_name.clone(),
-                            backend_name: name.clone(),
-                            content: message,
-                        };
-                        if tx.send(backend_message).is_err() {
-                            warn!("failed to broadcast message");
-                        }
+                        );
+                        group.send(MessageEvent::Create(message));
                     }
-                }))?;
+                });
             }
         }
 

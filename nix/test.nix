@@ -12,11 +12,11 @@ pkgs.nixosTest {
             # the "file" backend reads lines from a file and sends them as messages
             # and writes lines to a file when receiving messages
             kind: file
-            token: ${./src.txt}
+            path: ${./src.txt}
 
           dst:
             kind: file
-            token: /var/lib/oxibridge/dst.txt
+            path: /var/lib/oxibridge/dst.txt
 
         groups:
           test:

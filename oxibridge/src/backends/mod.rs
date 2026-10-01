@@ -1,42 +1,106 @@
 use std::error::Error;
 
-use crate::config::{BackendConfig, BackendKind, GroupBackendConfig};
-use log::debug;
-use tokio::sync::broadcast;
+use crate::config::{BackendConfig, GroupBackendConfig};
+use log::{debug, warn};
+use tokio::{
+    sync::broadcast::{self, error::RecvError},
+    task::JoinSet,
+};
 
-mod file;
+pub mod file;
 
+/// Creates the backend described by `backend_config`.
+///
+/// # Errors
+/// Returns an error if the backend rejects its configuration.
 pub fn get_backend(
     name: &str,
     backend_config: &BackendConfig,
     group_configs: &[BackendGroup],
-) -> Box<dyn self::Backend> {
-    debug!("Loading backend '{}' ({:?})", name, backend_config.kind);
-    match backend_config.kind {
-        BackendKind::File => Box::new(file::FileBackend::new(name, backend_config, group_configs)),
-        _ => todo!(),
-    }
+) -> Result<Box<dyn self::Backend>, Box<dyn Error>> {
+    debug!("Loading backend '{name}'");
+    Ok(match backend_config {
+        BackendConfig::File(config) => {
+            Box::new(file::FileBackend::new(name, config, group_configs)?)
+        }
+    })
 }
 
 #[async_trait::async_trait]
 pub trait Backend {
-    fn new(name: &str, config: &BackendConfig, group_configs: &[BackendGroup]) -> Self
-    where
-        Self: Sized;
-
-    async fn start(&self) -> Result<(), Box<dyn Error>>;
+    /// Starts the backend. Long-running work is spawned onto `tasks`.
+    async fn start(&self, tasks: &mut JoinSet<()>) -> Result<(), Box<dyn Error>>;
 }
 
+/// A backend's view of a group it takes part in.
 #[derive(Debug, Clone)]
 pub struct BackendGroup {
     pub name: String,
+    pub backend_name: String,
     pub config: GroupBackendConfig,
     pub tx: broadcast::Sender<BackendMessage>,
+}
+
+impl BackendGroup {
+    /// Broadcasts an event to the other backends in this group.
+    pub fn send(&self, event: MessageEvent) {
+        let message = BackendMessage {
+            group_name: self.name.clone(),
+            backend_name: self.backend_name.clone(),
+            event,
+        };
+        if self.tx.send(message).is_err() {
+            warn!("group '{}' has no receivers", self.name);
+        }
+    }
+
+    /// Subscribes to messages sent by the other backends in this group.
+    pub fn subscribe(&self) -> GroupReceiver {
+        GroupReceiver {
+            group_name: self.name.clone(),
+            backend_name: self.backend_name.clone(),
+            rx: self.tx.subscribe(),
+        }
+    }
+}
+
+pub struct GroupReceiver {
+    group_name: String,
+    backend_name: String,
+    rx: broadcast::Receiver<BackendMessage>,
+}
+
+impl GroupReceiver {
+    /// Waits for the next message from another backend.
+    ///
+    /// Returns [`None`] once all senders in the group are gone.
+    pub async fn recv(&mut self) -> Option<BackendMessage> {
+        loop {
+            match self.rx.recv().await {
+                Ok(message) if message.backend_name != self.backend_name => return Some(message),
+                Ok(_) => {}
+                Err(RecvError::Lagged(count)) => warn!(
+                    "backend '{}' skipped {count} messages in group '{}'",
+                    self.backend_name, self.group_name
+                ),
+                Err(RecvError::Closed) => return None,
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct BackendMessage {
     pub group_name: String,
     pub backend_name: String,
-    pub content: crate::core::Message,
+    pub event: MessageEvent,
+}
+
+#[derive(Clone, Debug)]
+pub enum MessageEvent {
+    Create(crate::core::Message),
+    /// Carries the full new message. Its ID is the ID of the edited message.
+    Edit(crate::core::Message),
+    /// Carries the ID of the deleted message.
+    Delete(u64),
 }
