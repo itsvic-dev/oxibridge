@@ -82,8 +82,7 @@ impl super::Backend for FileBackend {
                             vec![],
                             None,
                             None,
-                        )
-                        .await;
+                        );
                         let backend_message = super::BackendMessage {
                             group_name: group_name.clone(),
                             backend_name: name.clone(),
