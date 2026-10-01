@@ -119,6 +119,7 @@ impl Default for CacheKind {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum BackendConfig {
     File(crate::backends::file::Config),
+    Irc(crate::backends::irc::Config),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
