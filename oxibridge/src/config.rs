@@ -120,6 +120,7 @@ impl Default for CacheKind {
 pub enum BackendConfig {
     File(crate::backends::file::Config),
     Irc(crate::backends::irc::Config),
+    Telegram(crate::backends::telegram::Config),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
