@@ -281,6 +281,10 @@ fn split_at_bytes(text: &str, max: usize) -> Vec<&str> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use async_tempfile::TempFile;
+
     use super::{parse_text, render, split_at_bytes, strip_formatting};
     use crate::{
         backends::MessageEvent,
@@ -383,10 +387,11 @@ mod tests {
         );
     }
 
-    #[test]
-    fn mentions_attachments() {
+    #[tokio::test]
+    async fn mentions_attachments() -> Result<(), async_tempfile::Error> {
         let mut with_file = message("");
         with_file.attachments.push(Attachment {
+            file: Arc::new(TempFile::new().await?),
             filename: "a.png".to_owned(),
             spoilered: false,
         });
@@ -394,6 +399,7 @@ mod tests {
             render(&MessageEvent::Create(with_file)),
             vec!["Vic (@file/vic): [Sent an attachment]"]
         );
+        Ok(())
     }
 
     #[test]

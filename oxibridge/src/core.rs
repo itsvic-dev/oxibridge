@@ -1,4 +1,8 @@
 
+use std::sync::Arc;
+
+use async_tempfile::TempFile;
+
 /// The kind of platform a message or author comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Source {
@@ -119,11 +123,27 @@ pub struct Message {
     pub reply_author: Option<PartialAuthor>,
 }
 
+/// A file attached to a message. The file is deleted once the last copy of the attachment is dropped.
 #[derive(Debug, Clone)]
 pub struct Attachment {
-    // pub file: TempFile,
+    pub file: Arc<TempFile>,
+    /// Name to show and send the file as. Backends also use its extension to pick the kind of media.
     pub filename: String,
     pub spoilered: bool,
+}
+
+impl Attachment {
+    /// Whether the file should be shown as an image, judging by its extension.
+    pub fn is_image(&self) -> bool {
+        let extension = std::path::Path::new(&self.filename)
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .map(str::to_ascii_lowercase);
+        matches!(
+            extension.as_deref(),
+            Some("png" | "jpg" | "jpeg" | "webp" | "gif")
+        )
+    }
 }
 
 #[cfg(test)]
@@ -155,6 +175,22 @@ mod tests {
             author(Some(&name)).full_name(Some(0)),
             format!("{name} (@irc/nick)")
         );
+    }
+
+    async fn attachment(filename: &str) -> Result<super::Attachment, async_tempfile::Error> {
+        Ok(super::Attachment {
+            file: std::sync::Arc::new(async_tempfile::TempFile::new().await?),
+            filename: filename.to_owned(),
+            spoilered: false,
+        })
+    }
+
+    #[tokio::test]
+    async fn recognizes_images_by_extension() -> Result<(), async_tempfile::Error> {
+        assert!(attachment("photo.JPG").await?.is_image());
+        assert!(!attachment("clip.mp4").await?.is_image());
+        assert!(!attachment("noextension").await?.is_image());
+        Ok(())
     }
 
     #[test]
