@@ -1,13 +1,13 @@
 use std::error::Error;
 
 use color_eyre::Section;
-use log::{debug, info};
+use log::{debug, error, info};
+use tokio::task::JoinSet;
 
 mod backends;
 mod config;
 mod core;
 mod storage;
-mod tasks;
 pub use config::Config;
 
 use crate::backends::{BackendGroup, BackendMessage};
@@ -57,12 +57,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // we don't need to keep groups around anymore, drop them so oxibridge can cleanly shut down once all group senders get dropped
     std::mem::drop(groups);
 
+    let mut tasks = JoinSet::new();
     for (name, backend) in backends {
         debug!("Bringing up backend {name}");
-        backend.start().await?;
+        backend.start(&mut tasks).await?;
     }
 
-    futures::future::join_all(tasks::get_tasks()?).await;
+    while let Some(result) = tasks.join_next().await {
+        if let Err(e) = result {
+            error!("backend task failed: {e}");
+        }
+    }
 
     Ok(())
 }

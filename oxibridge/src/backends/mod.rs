@@ -2,7 +2,10 @@ use std::error::Error;
 
 use crate::config::{BackendConfig, GroupBackendConfig};
 use log::{debug, warn};
-use tokio::sync::broadcast::{self, error::RecvError};
+use tokio::{
+    sync::broadcast::{self, error::RecvError},
+    task::JoinSet,
+};
 
 pub mod file;
 
@@ -25,7 +28,8 @@ pub fn get_backend(
 
 #[async_trait::async_trait]
 pub trait Backend {
-    async fn start(&self) -> Result<(), Box<dyn Error>>;
+    /// Starts the backend. Long-running work is spawned onto `tasks`.
+    async fn start(&self, tasks: &mut JoinSet<()>) -> Result<(), Box<dyn Error>>;
 }
 
 /// A backend's view of a group it takes part in.

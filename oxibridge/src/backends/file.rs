@@ -4,6 +4,7 @@ use log::{debug, warn};
 use serde::{Deserialize, Serialize};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt},
+    task::JoinSet,
     time::sleep,
 };
 
@@ -47,7 +48,7 @@ impl FileBackend {
 
 #[async_trait::async_trait]
 impl super::Backend for FileBackend {
-    async fn start(&self) -> Result<(), Box<dyn Error>> {
+    async fn start(&self, tasks: &mut JoinSet<()>) -> Result<(), Box<dyn Error>> {
         debug!(
             "FileBackend '{}' started, file: '{}'",
             self.name,
@@ -63,7 +64,7 @@ impl super::Backend for FileBackend {
                     .open(&self.file_path)
                     .await?;
 
-                crate::tasks::add_task(tokio::spawn(async move {
+                tasks.spawn(async move {
                     while let Some(msg) = rx.recv().await {
                         let event = match msg.event {
                             MessageEvent::Create(message) => format!(
@@ -85,7 +86,7 @@ impl super::Backend for FileBackend {
                             warn!("failed to write to file");
                         }
                     }
-                }))?;
+                });
             }
 
             if !group.config.writeonly {
@@ -99,7 +100,7 @@ impl super::Backend for FileBackend {
                 let mut lines = reader.lines();
                 let group = group.clone();
 
-                crate::tasks::add_task(tokio::spawn(async move {
+                tasks.spawn(async move {
                     // wait for a second to let other backends start
                     sleep(Duration::from_secs(1)).await;
                     while let Ok(Some(line)) = lines.next_line().await {
@@ -116,7 +117,7 @@ impl super::Backend for FileBackend {
                         );
                         group.send(MessageEvent::Create(message));
                     }
-                }))?;
+                });
             }
         }
 
