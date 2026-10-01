@@ -1,6 +1,5 @@
 use std::error::Error;
 
-use color_eyre::Section;
 use log::{debug, error, info};
 use tokio::task::JoinSet;
 
@@ -17,13 +16,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     setup_logging()?;
     info!("Hello, world!");
 
-    let config = String::from_utf8(tokio::fs::read(
-        std::env::var("CONFIG_FILE").unwrap_or_else(|_| "config.yml".to_owned())
-    ).await.suggestion(
-        "Create a `config.yml` file and fill it out. Look at `config.example.yml` for reference.",
-    )?)?;
-
-    let config: Config = serde_yaml::from_str(&config)?;
+    let paths = std::env::var("CONFIG_FILE").unwrap_or_else(|_| "config.yml".to_owned());
+    let config = Config::load(&paths.split(':').collect::<Vec<_>>()).await?;
     config.validate()?;
 
     let groups: Vec<_> = config
