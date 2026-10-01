@@ -3,15 +3,18 @@ use std::{error::Error, sync::Arc};
 use async_tempfile::TempFile;
 use grammers_client::{
     Client,
-    media::{Document, Media},
-    message::Message as TgMessage,
+    media::{Document, InputMedia, Media, Uploaded},
+    message::{InputMessage, Message as TgMessage},
+    session::types::PeerRef,
     tl,
 };
 
-use crate::core::Attachment;
+use crate::core::{Attachment, Message};
 
 // larger files are mentioned instead of bridged, as no other platform takes them anyway
 const MAX_DOWNLOAD_BYTES: usize = 50 * 1024 * 1024;
+// Telegram's limit for media captions, in UTF-16 units
+const MAX_CAPTION_LENGTH: usize = 1024;
 
 type MediaResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
@@ -110,6 +113,105 @@ pub async fn incoming(
             spoilered,
         }],
     })
+}
+
+/// Sends `message` with its attachments and returns the IDs of the Telegram messages, the captioned one first.
+///
+/// Telegram cannot mix photos and other files in one album, and limits caption length.
+/// In those cases the text is sent first, then each file on its own.
+pub async fn send(
+    client: &Client,
+    target: PeerRef,
+    message: &Message,
+    reply_to: Option<i32>,
+) -> MediaResult<Vec<i32>> {
+    let (text, entities) =
+        super::markdown::bridged(&message.author.full_name(Some(0)), &message.content);
+    let attachments = message.attachments.as_slice();
+    let caption_fits = text.encode_utf16().count() <= MAX_CAPTION_LENGTH;
+    let album = attachments.len() > 1 && attachments.iter().all(is_photo);
+    let text_message = InputMessage::new()
+        .text(text.clone())
+        .fmt_entities(entities.clone())
+        .reply_to(reply_to);
+
+    if let ([attachment], true) = (attachments, caption_fits) {
+        let uploaded = upload(client, attachment).await?;
+        let sent = client
+            .send_message(target, with_file(text_message, attachment, uploaded))
+            .await?;
+        return Ok(vec![sent.id()]);
+    }
+
+    if album && caption_fits {
+        let mut items = vec![];
+        for (index, attachment) in attachments.iter().enumerate() {
+            let uploaded = upload(client, attachment).await?;
+            let item = if index == 0 {
+                InputMedia::new()
+                    .caption(text.clone())
+                    .fmt_entities(entities.clone())
+                    .reply_to(reply_to)
+            } else {
+                InputMedia::new()
+            };
+            items.push(match photo_with_spoiler(attachment, &uploaded) {
+                Some(raw) => item.media(raw),
+                None => item.photo(uploaded),
+            });
+        }
+        let sent = client.send_album(target, items).await?;
+        return Ok(sent.into_iter().flatten().map(|sent| sent.id()).collect());
+    }
+
+    let mut ids = vec![client.send_message(target, text_message).await?.id()];
+    for attachment in attachments {
+        let uploaded = upload(client, attachment).await?;
+        let sent = client
+            .send_message(target, with_file(InputMessage::new(), attachment, uploaded))
+            .await?;
+        ids.push(sent.id());
+    }
+    Ok(ids)
+}
+
+fn is_photo(attachment: &Attachment) -> bool {
+    // Telegram turns GIFs sent as photos into still images
+    attachment.is_image() && !attachment.filename.to_ascii_lowercase().ends_with(".gif")
+}
+
+async fn upload(client: &Client, attachment: &Attachment) -> MediaResult<Uploaded> {
+    let mut file = tokio::fs::File::open(attachment.file.file_path()).await?;
+    let size = usize::try_from(file.metadata().await?.len())?;
+    Ok(client
+        .upload_stream(&mut file, size, attachment.filename.clone())
+        .await?)
+}
+
+fn photo_with_spoiler(
+    attachment: &Attachment,
+    uploaded: &Uploaded,
+) -> Option<tl::types::InputMediaUploadedPhoto> {
+    attachment
+        .spoilered
+        .then(|| tl::types::InputMediaUploadedPhoto {
+            spoiler: true,
+            live_photo: false,
+            file: uploaded.raw.clone(),
+            stickers: None,
+            ttl_seconds: None,
+            video: None,
+        })
+}
+
+fn with_file(message: InputMessage, attachment: &Attachment, uploaded: Uploaded) -> InputMessage {
+    if !is_photo(attachment) {
+        return message.document(uploaded);
+    }
+    match photo_with_spoiler(attachment, &uploaded) {
+        Some(raw) => message.media(raw),
+        None => message.photo(uploaded),
+    }
 }
 
 fn document_name(document: &Document) -> String {

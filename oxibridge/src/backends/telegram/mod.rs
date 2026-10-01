@@ -238,17 +238,16 @@ async fn deliver(context: &Context, peer: PeerId, event: &MessageEvent) -> TaskR
                 Some(reply) => platform_ids(context, reply, peer).await?.first().copied(),
                 None => None,
             };
-            let sent = context
-                .client
-                .send_message(target, render(message).reply_to(reply_to))
-                .await?;
-            context
-                .database
-                .add_link(message.id, &link(context, peer, sent.id()))
-                .await?;
+            for id in media::send(&context.client, target, message, reply_to).await? {
+                context
+                    .database
+                    .add_link(message.id, &link(context, peer, id))
+                    .await?;
+            }
         }
         MessageEvent::Edit(message) => {
-            for id in platform_ids(context, message.id, peer).await? {
+            // only the first message of a bridged message carries its text
+            if let Some(&id) = platform_ids(context, message.id, peer).await?.first() {
                 context
                     .client
                     .edit_message(target, id, render(message))
