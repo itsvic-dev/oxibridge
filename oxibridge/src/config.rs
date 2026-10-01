@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
@@ -46,35 +46,31 @@ impl Default for CacheKind {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct BackendConfig {
-    pub kind: BackendKind, // one of "discord", "telegram"
-    pub token: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum BackendKind {
-    Discord,
-    Telegram,
-    File,
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum BackendConfig {
+    File(crate::backends::file::Config),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GroupBackendConfig {
-    // for discord: guild, channel
-    #[serde(default)]
-    pub guild: Option<u64>,
-    #[serde(default)]
-    pub channel: Option<u64>,
-    // for telegram: chat
-    #[serde(default)]
-    pub chat: Option<i64>,
-
-    // shared options
     #[serde(default)]
     /// if true, messages are only read from this chat and never written to it
     pub readonly: bool,
     #[serde(default)]
     /// if true, messages are only written to this chat and never read from it
     pub writeonly: bool,
+
+    /// Backend-specific options, parsed by the backend with [`Self::options`].
+    #[serde(flatten)]
+    pub options: serde_yaml::Mapping,
+}
+
+impl GroupBackendConfig {
+    /// Parses the backend-specific options of this group.
+    ///
+    /// # Errors
+    /// Returns an error if the options do not match `T`.
+    pub fn options<T: DeserializeOwned>(&self) -> Result<T, serde_yaml::Error> {
+        serde_yaml::from_value(serde_yaml::Value::Mapping(self.options.clone()))
+    }
 }

@@ -35,10 +35,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         })
         .collect();
 
-    let backends: Vec<_> = config
+    let backends = config
         .backends
         .iter()
-        .map(|(name, backend)| {
+        .map(|(name, backend)| -> Result<_, Box<dyn Error>> {
             let backend_groups: Vec<_> = groups
                 .iter()
                 .filter(|(_, config, _)| config.contains_key(name))
@@ -50,9 +50,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 })
                 .collect();
 
-            (name, backends::get_backend(name, backend, &backend_groups))
+            Ok((name, backends::get_backend(name, backend, &backend_groups)?))
         })
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     // we don't need to keep groups around anymore, drop them so oxibridge can cleanly shut down once all group senders get dropped
     std::mem::drop(groups);

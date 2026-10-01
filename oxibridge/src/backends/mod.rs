@@ -1,29 +1,30 @@
 use std::error::Error;
 
-use crate::config::{BackendConfig, BackendKind, GroupBackendConfig};
+use crate::config::{BackendConfig, GroupBackendConfig};
 use log::{debug, warn};
 use tokio::sync::broadcast::{self, error::RecvError};
 
-mod file;
+pub mod file;
 
+/// Creates the backend described by `backend_config`.
+///
+/// # Errors
+/// Returns an error if the backend rejects its configuration.
 pub fn get_backend(
     name: &str,
     backend_config: &BackendConfig,
     group_configs: &[BackendGroup],
-) -> Box<dyn self::Backend> {
-    debug!("Loading backend '{}' ({:?})", name, backend_config.kind);
-    match backend_config.kind {
-        BackendKind::File => Box::new(file::FileBackend::new(name, backend_config, group_configs)),
-        _ => todo!(),
-    }
+) -> Result<Box<dyn self::Backend>, Box<dyn Error>> {
+    debug!("Loading backend '{name}'");
+    Ok(match backend_config {
+        BackendConfig::File(config) => {
+            Box::new(file::FileBackend::new(name, config, group_configs)?)
+        }
+    })
 }
 
 #[async_trait::async_trait]
 pub trait Backend {
-    fn new(name: &str, config: &BackendConfig, group_configs: &[BackendGroup]) -> Self
-    where
-        Self: Sized;
-
     async fn start(&self) -> Result<(), Box<dyn Error>>;
 }
 

@@ -1,36 +1,57 @@
-use std::{error::Error, time::Duration};
+use std::{error::Error, path::PathBuf, time::Duration};
 
 use log::{debug, warn};
+use serde::{Deserialize, Serialize};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt},
     time::sleep,
 };
 
-use crate::{
-    backends::{BackendGroup, MessageEvent},
-    config::BackendConfig,
-};
+use crate::backends::{BackendGroup, MessageEvent};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Config {
+    pub path: PathBuf,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GroupConfig {}
 
 pub struct FileBackend {
-    file_path: String,
+    file_path: PathBuf,
     name: String,
     group_configs: Vec<BackendGroup>,
 }
 
-#[async_trait::async_trait]
-impl super::Backend for FileBackend {
-    fn new(name: &str, config: &BackendConfig, group_configs: &[BackendGroup]) -> Self {
-        Self {
-            file_path: config.token.clone(),
+impl FileBackend {
+    pub fn new(
+        name: &str,
+        config: &Config,
+        group_configs: &[BackendGroup],
+    ) -> Result<Self, Box<dyn Error>> {
+        for group in group_configs {
+            group
+                .config
+                .options::<GroupConfig>()
+                .map_err(|e| format!("backend '{name}' in group '{}': {e}", group.name))?;
+        }
+
+        Ok(Self {
+            file_path: config.path.clone(),
             name: name.to_owned(),
             group_configs: group_configs.to_vec(),
-        }
+        })
     }
+}
 
+#[async_trait::async_trait]
+impl super::Backend for FileBackend {
     async fn start(&self) -> Result<(), Box<dyn Error>> {
         debug!(
             "FileBackend '{}' started, file: '{}'",
-            self.name, self.file_path
+            self.name,
+            self.file_path.display()
         );
 
         for group in &self.group_configs {
