@@ -9,7 +9,6 @@ use grammers_client::{
         Session,
         types::{PeerId, PeerKind, PeerRef},
     },
-    tl,
     update::{MessageDeletion, Update},
 };
 use log::{debug, warn};
@@ -22,6 +21,7 @@ use crate::{
     database::{Database, Link},
 };
 
+mod markdown;
 mod session;
 
 use session::StoredSession;
@@ -269,16 +269,8 @@ async fn deliver(context: &Context, peer: PeerId, event: &MessageEvent) -> TaskR
 }
 
 fn render(message: &Message) -> InputMessage {
-    let (text, entities) = format_text(message);
+    let (text, entities) = markdown::bridged(&message.author.full_name(Some(0)), &message.content);
     InputMessage::new().text(text).fmt_entities(entities)
-}
-
-/// Formats a bridged message as the author's name in bold, then the content on the next line.
-fn format_text(message: &Message) -> (String, Vec<tl::enums::MessageEntity>) {
-    let name = message.author.full_name(Some(0));
-    let length = i32::try_from(name.encode_utf16().count()).unwrap_or(i32::MAX);
-    let bold = tl::types::MessageEntityBold { offset: 0, length }.into();
-    (format!("{name}\n{}", message.content), vec![bold])
 }
 
 async fn receive(context: &Context, chats: &[Chat], update: Update) -> TaskResult {
@@ -394,7 +386,10 @@ async fn to_core(
     Ok(Message {
         id,
         author,
-        content: message.text().to_owned(),
+        content: markdown::to_markdown(
+            message.text(),
+            message.fmt_entities().map_or(&[], Vec::as_slice),
+        ),
         attachments: vec![],
         in_reply_to,
         reply_author,
@@ -416,59 +411,5 @@ fn author_of(message: &TgMessage) -> Author {
         display_name,
         username,
         source: Source::Telegram,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use grammers_client::tl;
-
-    use super::format_text;
-    use crate::core::{Author, Message, Source};
-
-    fn message(display_name: &str, content: &str) -> Message {
-        Message {
-            id: 1,
-            author: Author {
-                display_name: Some(display_name.to_owned()),
-                username: "vic".to_owned(),
-                source: Source::Irc,
-            },
-            content: content.to_owned(),
-            attachments: vec![],
-            in_reply_to: None,
-            reply_author: None,
-        }
-    }
-
-    #[test]
-    fn puts_the_author_in_bold_above_the_content() {
-        let (text, entities) = format_text(&message("Vic", "hello"));
-        assert_eq!(text, "Vic (@irc/vic)\nhello");
-        assert_eq!(
-            entities,
-            vec![
-                tl::types::MessageEntityBold {
-                    offset: 0,
-                    length: 14
-                }
-                .into()
-            ]
-        );
-    }
-
-    #[test]
-    fn measures_the_author_in_utf16_units() {
-        let (_, entities) = format_text(&message("🦀", "hi"));
-        assert_eq!(
-            entities,
-            vec![
-                tl::types::MessageEntityBold {
-                    offset: 0,
-                    length: 13
-                }
-                .into()
-            ]
-        );
     }
 }
