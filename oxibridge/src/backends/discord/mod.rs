@@ -29,6 +29,7 @@ type TaskResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 // Discord's upload limit for bots in servers without boosts
 const MAX_UPLOAD_BYTES: u64 = 10 * 1024 * 1024;
 const MAX_DOWNLOAD_BYTES: u32 = 50 * 1024 * 1024;
+const MAX_FILES: usize = 10;
 const WEBHOOK_NAME: &str = "Oxibridge";
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -223,13 +224,22 @@ async fn deliver(
                 }
             };
 
-            let mut builder = base().add_files(files);
-            if let Some(first) = pieces.next() {
-                builder = builder.content(first);
+            let mut files = files.into_iter().peekable();
+            let mut chunks = vec![];
+            while files.peek().is_some() {
+                chunks.push(files.by_ref().take(MAX_FILES).collect::<Vec<_>>());
             }
-            let mut sent = vec![webhook.execute(http, true, builder).await?];
-            for piece in pieces {
-                let builder = base().content(piece);
+            let count = pieces.len().max(chunks.len()).max(1);
+            let mut chunks = chunks.into_iter();
+            let mut sent = vec![];
+            for _ in 0..count {
+                let mut builder = base();
+                if let Some(piece) = pieces.next() {
+                    builder = builder.content(piece);
+                }
+                if let Some(chunk) = chunks.next() {
+                    builder = builder.add_files(chunk);
+                }
                 sent.push(webhook.execute(http, true, builder).await?);
             }
             for sent in sent.into_iter().flatten() {
