@@ -28,7 +28,7 @@ type MediaResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 pub struct Avatars(Arc<Mutex<HashMap<i64, Arc<TempFile>>>>);
 
 impl Avatars {
-    /// Returns the small profile photo of `peer`, and downloads it if it is not cached.
+    /// Returns the big profile photo of `peer`, and downloads it if it is not cached.
     pub async fn get(&self, client: &Client, peer: &Peer) -> MediaResult<Option<Arc<TempFile>>> {
         let id = match peer {
             Peer::User(user) => user.photo().map(|photo| photo.photo_id),
@@ -41,7 +41,7 @@ impl Avatars {
         if let Some(file) = self.0.lock().await.get(&id) {
             return Ok(Some(Arc::clone(file)));
         }
-        let Some(photo) = peer.photo(false).await? else {
+        let Some(photo) = peer.photo(true).await? else {
             return Ok(None);
         };
         let file = Arc::new(TempFile::new().await?);
