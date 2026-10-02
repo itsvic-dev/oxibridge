@@ -399,7 +399,7 @@ impl Handler {
             return Ok(());
         }
 
-        let core = to_core(&self.context, http, message).await?;
+        let core = to_core(&self.context, http, message, true).await?;
         if core.content.is_empty() && core.attachments.is_empty() {
             return Ok(());
         }
@@ -428,10 +428,8 @@ impl Handler {
     }
 
     async fn receive_edit(&self, http: &Http, event: &MessageUpdateEvent) -> TaskResult {
-        let (Some(author), Some(text)) = (&event.author, &event.content) else {
-            return Ok(());
-        };
-        if author.bot {
+        // Discord also sends updates for embeds, which leave the content out
+        if event.content.is_none() || event.author.as_ref().is_some_and(|author| author.bot) {
             return Ok(());
         }
         let link = link(&self.context, event.channel_id, event.id);
@@ -439,18 +437,19 @@ impl Handler {
             return Ok(());
         };
 
-        let mentions = event.mentions.as_deref().unwrap_or_default();
-        let content = core_content(&self.context, http, text, mentions).await;
-        self.context.database.set_content(id, &content).await?;
-        let core = self.context.database.message(id).await?.unwrap_or(Message {
-            id,
-            author: author_of(author, None),
-            content,
-            attachments: vec![],
-            in_reply_to: None,
-            reply_author: None,
-            reactions: vec![],
-        });
+        // the update has only the changed fields, so labels like the sticker name need the full message
+        let message = event.channel_id.message(http, event.id).await?;
+        let fresh = to_core(&self.context, http, &message, false).await?;
+        self.context
+            .database
+            .set_content(id, &fresh.content)
+            .await?;
+        let core = self
+            .context
+            .database
+            .message(id)
+            .await?
+            .unwrap_or(Message { id, ..fresh });
         for chat in self.chats_in(event.channel_id) {
             chat.group.send(MessageEvent::Edit(core.clone())).await;
         }
@@ -630,7 +629,12 @@ async fn core_content(context: &Context, http: &Http, text: &str, mentions: &[Us
 }
 
 /// Converts `message` to a core message, with ID 0 for the caller to replace.
-async fn to_core(context: &Context, http: &Http, message: &DiscordMessage) -> TaskResult<Message> {
+async fn to_core(
+    context: &Context,
+    http: &Http,
+    message: &DiscordMessage,
+    download: bool,
+) -> TaskResult<Message> {
     let nickname = message
         .member
         .as_ref()
@@ -653,7 +657,7 @@ async fn to_core(context: &Context, http: &Http, message: &DiscordMessage) -> Ta
 
     for sticker in &message.sticker_items {
         parts.push(format!("*{} sticker*", sticker.name));
-        if let Some(url) = sticker.image_url() {
+        if download && let Some(url) = sticker.image_url() {
             let file = CreateAttachment::url(http, &url).await?;
             attachments.push(attachment_from(&file.data, &file.filename).await?);
         }
@@ -664,7 +668,7 @@ async fn to_core(context: &Context, http: &Http, message: &DiscordMessage) -> Ta
                 "*Sent a file that is too large to bridge: {}*",
                 file.filename
             ));
-        } else {
+        } else if download {
             attachments.push(attachment_from(&file.download().await?, &file.filename).await?);
         }
     }
