@@ -132,6 +132,8 @@ pub enum MessageEvent {
     Create(crate::core::Message),
     /// Carries the full new message. Its ID is the ID of the edited message.
     Edit(crate::core::Message),
+    /// Carries the full message after its reactions changed, also to the backend it came from.
+    Reactions(crate::core::Message),
     /// Carries the ID of the deleted message.
     Delete(i64),
 }

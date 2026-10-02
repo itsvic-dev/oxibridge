@@ -165,12 +165,22 @@ async fn receive(database: &Database, channels: &[Channel], message: &IrcMessage
         source: Source::Irc,
     };
 
+    let mut message = Message {
+        id: 0,
+        author,
+        content,
+        attachments: vec![],
+        in_reply_to: None,
+        reply_author: None,
+        reactions: vec![],
+    };
     for channel in channels
         .iter()
         .filter(|c| c.name.eq_ignore_ascii_case(target))
     {
-        let id = match database
-            .create_message(&channel.group.name, &(&author).into())
+        let group = &channel.group;
+        message.id = match database
+            .create_message(&group.name, &group.backend_name, &message)
             .await
         {
             Ok(id) => id,
@@ -179,14 +189,7 @@ async fn receive(database: &Database, channels: &[Channel], message: &IrcMessage
                 continue;
             }
         };
-        channel.group.send(MessageEvent::Create(Message {
-            id,
-            author: author.clone(),
-            content: content.clone(),
-            attachments: vec![],
-            in_reply_to: None,
-            reply_author: None,
-        }));
+        group.send(MessageEvent::Create(message.clone()));
     }
 }
 
@@ -237,7 +240,7 @@ fn render(event: &MessageEvent) -> Vec<String> {
     let (message, edited) = match event {
         MessageEvent::Create(message) => (message, false),
         MessageEvent::Edit(message) => (message, true),
-        MessageEvent::Delete(_) => return vec![],
+        MessageEvent::Reactions(_) | MessageEvent::Delete(_) => return vec![],
     };
 
     let mut prefix = message.author.full_name(Some(0));
@@ -308,6 +311,7 @@ mod tests {
             attachments: vec![],
             in_reply_to: None,
             reply_author: None,
+            reactions: vec![],
         }
     }
 
@@ -410,6 +414,11 @@ mod tests {
     #[test]
     fn sends_nothing_for_deletes() {
         assert!(render(&MessageEvent::Delete(1)).is_empty());
+    }
+
+    #[test]
+    fn sends_nothing_for_reactions() {
+        assert!(render(&MessageEvent::Reactions(message("hi"))).is_empty());
     }
 
     #[test]

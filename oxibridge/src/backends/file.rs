@@ -70,6 +70,7 @@ impl super::Backend for FileBackend {
                     .append(true)
                     .open(&self.file_path)
                     .await?;
+                let name = self.name.clone();
 
                 tasks.spawn(async move {
                     while let Some(msg) = rx.recv().await {
@@ -82,6 +83,11 @@ impl super::Backend for FileBackend {
                                 message.id,
                                 message.author.full_name(None),
                                 message.content
+                            ),
+                            MessageEvent::Reactions(message) => format!(
+                                "[reactions #{}] {}",
+                                message.id,
+                                message.reaction_summary(&name).unwrap_or_default()
                             ),
                             MessageEvent::Delete(id) => format!("[delete #{id}]"),
                         };
@@ -119,26 +125,26 @@ impl super::Backend for FileBackend {
                             chat: chat.clone(),
                             platform_id: line_number.to_string(),
                         };
-                        let author = Author {
-                            display_name: None,
-                            username: "file_backend".to_owned(),
-                            avatar: None,
-                            source: Source::File,
+                        let mut message = Message {
+                            id: 0,
+                            author: Author {
+                                display_name: None,
+                                username: "file_backend".to_owned(),
+                                avatar: None,
+                                source: Source::File,
+                            },
+                            content: line,
+                            attachments: vec![],
+                            in_reply_to: None,
+                            reply_author: None,
+                            reactions: vec![],
                         };
-                        let id = match record(&database, &group.name, &author, &link).await {
+                        message.id = match record(&database, &group, &message, &link).await {
                             Ok(id) => id,
                             Err(e) => {
                                 warn!("failed to record line {line_number}: {e}");
                                 continue;
                             }
-                        };
-                        let message = Message {
-                            id,
-                            author,
-                            content: line,
-                            attachments: vec![],
-                            in_reply_to: None,
-                            reply_author: None,
                         };
                         group.send(MessageEvent::Create(message));
                     }
@@ -152,11 +158,13 @@ impl super::Backend for FileBackend {
 
 async fn record(
     database: &Database,
-    group: &str,
-    author: &Author,
+    group: &BackendGroup,
+    message: &Message,
     link: &Link,
 ) -> sqlx::Result<i64> {
-    let id = database.create_message(group, &author.into()).await?;
+    let id = database
+        .create_message(&group.name, &group.backend_name, message)
+        .await?;
     database.add_link(id, link).await?;
     Ok(id)
 }

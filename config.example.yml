@@ -16,7 +16,7 @@ global:
 backends:
   telegram01:
     kind: telegram
-    # Bot token from @BotFather on Telegram
+    # Bot token from @BotFather on Telegram. Make the bot an admin to bridge reactions.
     token: "PLACEHOLDER"
     # API ID and hash from https://my.telegram.org
     api_id: 12345

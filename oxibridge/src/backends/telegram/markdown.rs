@@ -92,12 +92,17 @@ impl Builder {
     }
 }
 
-/// Builds the Telegram text for a bridged message: `header` in bold on its own line, then `markdown`.
-pub fn bridged(header: &str, markdown: &str) -> (String, Vec<MessageEntity>) {
+/// Builds the Telegram text for a bridged message: `header` in bold on its own line, then `markdown`,
+/// then `footer` in italics on its own line.
+pub fn bridged(header: &str, markdown: &str, footer: Option<&str>) -> (String, Vec<MessageEntity>) {
     let mut out = Builder::default();
     out.wrap(Kind::Bold, |out| out.push(header));
     out.push("\n");
     parse(markdown, &mut out, true);
+    if let Some(footer) = footer {
+        out.push("\n");
+        out.wrap(Kind::Italic, |out| out.push(footer));
+    }
     (out.text, out.entities)
 }
 
@@ -539,15 +544,26 @@ mod tests {
     #[test]
     fn puts_the_header_in_bold_before_the_content() {
         assert_eq!(
-            bridged("Vic", "*hi*"),
+            bridged("Vic", "*hi*", None),
             ("Vic\nhi".to_owned(), vec![bold(0, 3), italic(4, 2)])
+        );
+    }
+
+    #[test]
+    fn puts_the_footer_in_italics_without_parsing_it() {
+        assert_eq!(
+            bridged("Vic", "hi", Some(":a_b_c: 1")),
+            (
+                "Vic\nhi\n:a_b_c: 1".to_owned(),
+                vec![bold(0, 3), italic(7, 9)]
+            )
         );
     }
 
     #[test]
     fn measures_the_header_in_utf16_units() {
         assert_eq!(
-            bridged("🦀", "*hi*"),
+            bridged("🦀", "*hi*", None),
             ("🦀\nhi".to_owned(), vec![bold(0, 2), italic(3, 2)])
         );
     }

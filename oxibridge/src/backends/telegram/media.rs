@@ -156,7 +156,7 @@ pub async fn send(
     reply_to: Option<i32>,
 ) -> MediaResult<Vec<i32>> {
     let (text, entities) =
-        super::markdown::bridged(&message.author.full_name(Some(0)), &message.content);
+        super::markdown::bridged(&message.author.full_name(Some(0)), &message.content, None);
     let attachments = message.attachments.as_slice();
     let caption_fits = text.encode_utf16().count() <= MAX_CAPTION_LENGTH;
     let album = attachments.len() > 1 && attachments.iter().all(is_photo);

@@ -5,7 +5,7 @@ use sqlx::{
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
 };
 
-use crate::core::{PartialAuthor, Source};
+use crate::core::{Message, PartialAuthor, Reaction, Source};
 
 /// Identifies one platform message that a core message was bridged as.
 ///
@@ -56,22 +56,173 @@ impl Database {
         Self::connect(pool_options, "sqlite::memory:".parse()?).await
     }
 
-    /// Creates a core message by `author` in `group` and returns its ID.
+    /// Records `message`, which `backend` received in `group`, and returns its new core ID.
+    ///
+    /// The ID of `message` itself is ignored.
     ///
     /// # Errors
     /// Returns an error if the query fails.
-    pub async fn create_message(&self, group: &str, author: &PartialAuthor) -> sqlx::Result<i64> {
-        let source = author.source.tag();
+    pub async fn create_message(
+        &self,
+        group: &str,
+        backend: &str,
+        message: &Message,
+    ) -> sqlx::Result<i64> {
+        let source = message.author.source.tag();
         sqlx::query_scalar!(
-            r#"INSERT INTO messages (group_name, author_username, author_display_name, author_source)
-            VALUES (?, ?, ?, ?) RETURNING id AS "id!""#,
+            r#"INSERT INTO messages
+            (group_name, backend, author_username, author_display_name, author_source, content, in_reply_to)
+            VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id AS "id!""#,
             group,
-            author.username,
-            author.display_name,
-            source
+            backend,
+            message.author.username,
+            message.author.display_name,
+            source,
+            message.content,
+            message.in_reply_to
         )
         .fetch_one(&self.pool)
         .await
+    }
+
+    /// Replaces the content of core message `message_id` after an edit.
+    ///
+    /// # Errors
+    /// Returns an error if the query fails.
+    pub async fn set_content(&self, message_id: i64, content: &str) -> sqlx::Result<()> {
+        sqlx::query!(
+            "UPDATE messages SET content = ? WHERE id = ?",
+            content,
+            message_id
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Loads core message `message_id` with its reactions, but without attachments.
+    ///
+    /// Returns [`None`] for unknown messages and messages recorded before content was stored.
+    ///
+    /// # Errors
+    /// Returns an error if a query fails.
+    pub async fn message(&self, message_id: i64) -> sqlx::Result<Option<Message>> {
+        let Some(row) = sqlx::query!(
+            "SELECT content, in_reply_to FROM messages WHERE id = ?",
+            message_id
+        )
+        .fetch_optional(&self.pool)
+        .await?
+        else {
+            return Ok(None);
+        };
+        let (Some(content), Some(author)) = (row.content, self.message_author(message_id).await?)
+        else {
+            return Ok(None);
+        };
+        let reply_author = match row.in_reply_to {
+            Some(reply) => self.message_author(reply).await?,
+            None => None,
+        };
+        Ok(Some(Message {
+            author: author.into(),
+            content,
+            attachments: vec![],
+            id: message_id,
+            in_reply_to: row.in_reply_to,
+            reply_author,
+            reactions: self.reactions(message_id).await?,
+        }))
+    }
+
+    /// Returns the backend that core message `message_id` was first received on.
+    ///
+    /// # Errors
+    /// Returns an error if the query fails.
+    pub async fn message_origin(&self, message_id: i64) -> sqlx::Result<Option<String>> {
+        Ok(
+            sqlx::query_scalar!("SELECT backend FROM messages WHERE id = ?", message_id)
+                .fetch_optional(&self.pool)
+                .await?
+                .flatten(),
+        )
+    }
+
+    /// Lists the reactions to core message `message_id`.
+    ///
+    /// # Errors
+    /// Returns an error if the query fails.
+    pub async fn reactions(&self, message_id: i64) -> sqlx::Result<Vec<Reaction>> {
+        sqlx::query_as!(
+            Reaction,
+            "SELECT backend, emoji, count FROM reactions WHERE message_id = ? ORDER BY rowid",
+            message_id
+        )
+        .fetch_all(&self.pool)
+        .await
+    }
+
+    /// Replaces all reactions that core message `message_id` has on `backend`.
+    ///
+    /// # Errors
+    /// Returns an error if a query fails.
+    pub async fn set_reactions(
+        &self,
+        message_id: i64,
+        backend: &str,
+        reactions: &[(String, i64)],
+    ) -> sqlx::Result<()> {
+        let mut transaction = self.pool.begin().await?;
+        sqlx::query!(
+            "DELETE FROM reactions WHERE message_id = ? AND backend = ?",
+            message_id,
+            backend
+        )
+        .execute(&mut *transaction)
+        .await?;
+        for (emoji, count) in reactions.iter().filter(|(_, count)| *count > 0) {
+            sqlx::query!(
+                "INSERT INTO reactions (message_id, backend, emoji, count) VALUES (?, ?, ?, ?)",
+                message_id,
+                backend,
+                emoji,
+                count
+            )
+            .execute(&mut *transaction)
+            .await?;
+        }
+        transaction.commit().await
+    }
+
+    /// Changes the count of one reaction to core message `message_id` on `backend` by `delta`.
+    ///
+    /// # Errors
+    /// Returns an error if a query fails.
+    pub async fn add_reaction(
+        &self,
+        message_id: i64,
+        backend: &str,
+        emoji: &str,
+        delta: i64,
+    ) -> sqlx::Result<()> {
+        let mut transaction = self.pool.begin().await?;
+        sqlx::query!(
+            "INSERT INTO reactions (message_id, backend, emoji, count) VALUES (?, ?, ?, ?)
+            ON CONFLICT (message_id, backend, emoji) DO UPDATE SET count = count + excluded.count",
+            message_id,
+            backend,
+            emoji,
+            delta
+        )
+        .execute(&mut *transaction)
+        .await?;
+        sqlx::query!(
+            "DELETE FROM reactions WHERE message_id = ? AND count <= 0",
+            message_id
+        )
+        .execute(&mut *transaction)
+        .await?;
+        transaction.commit().await
     }
 
     /// Returns the author of core message `message_id`, if it is known.
@@ -218,7 +369,7 @@ impl Database {
 #[cfg(test)]
 mod tests {
     use super::{Database, Link};
-    use crate::core::{PartialAuthor, Source};
+    use crate::core::{Message, PartialAuthor, Reaction, Source};
 
     fn author() -> PartialAuthor {
         PartialAuthor {
@@ -226,6 +377,73 @@ mod tests {
             username: "vic".to_owned(),
             source: Source::Irc,
         }
+    }
+
+    fn message() -> Message {
+        Message {
+            author: author().into(),
+            content: "hi".to_owned(),
+            attachments: vec![],
+            id: 0,
+            in_reply_to: None,
+            reply_author: None,
+            reactions: vec![],
+        }
+    }
+
+    fn reaction(backend: &str, emoji: &str, count: i64) -> Reaction {
+        Reaction {
+            backend: backend.to_owned(),
+            emoji: emoji.to_owned(),
+            count,
+        }
+    }
+
+    #[tokio::test]
+    async fn loads_a_message_with_its_reply_and_edits() -> sqlx::Result<()> {
+        let db = database().await?;
+        let first = db.create_message("g", "irc", &message()).await?;
+        let reply = Message {
+            in_reply_to: Some(first),
+            ..message()
+        };
+        let second = db.create_message("g", "irc", &reply).await?;
+        db.set_content(second, "edited").await?;
+
+        let loaded = db.message(second).await?.ok_or(sqlx::Error::RowNotFound)?;
+        assert_eq!(loaded.id, second);
+        assert_eq!(loaded.content, "edited");
+        assert_eq!(loaded.in_reply_to, Some(first));
+        assert_eq!(loaded.reply_author, Some(author()));
+        assert_eq!(db.message_origin(second).await?, Some("irc".to_owned()));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn counts_reactions_up_and_down() -> sqlx::Result<()> {
+        let db = database().await?;
+        let id = db.create_message("g", "irc", &message()).await?;
+        db.add_reaction(id, "tg", "👍", 1).await?;
+        db.add_reaction(id, "tg", "👍", 1).await?;
+        db.add_reaction(id, "tg", "❤️", 1).await?;
+        db.add_reaction(id, "tg", "❤️", -1).await?;
+        assert_eq!(db.reactions(id).await?, vec![reaction("tg", "👍", 2)]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn replaces_the_reactions_of_one_backend() -> sqlx::Result<()> {
+        let db = database().await?;
+        let id = db.create_message("g", "irc", &message()).await?;
+        db.add_reaction(id, "tg", "👍", 1).await?;
+        db.add_reaction(id, "dc", "👍", 1).await?;
+        db.set_reactions(id, "dc", &[("🎉".to_owned(), 3), ("😢".to_owned(), 0)])
+            .await?;
+        assert_eq!(
+            db.reactions(id).await?,
+            vec![reaction("tg", "👍", 1), reaction("dc", "🎉", 3)]
+        );
+        Ok(())
     }
 
     async fn database() -> sqlx::Result<Database> {
@@ -243,8 +461,8 @@ mod tests {
     #[tokio::test]
     async fn gives_each_message_a_new_id() -> sqlx::Result<()> {
         let db = database().await?;
-        let first = db.create_message("g", &author()).await?;
-        let second = db.create_message("g", &author()).await?;
+        let first = db.create_message("g", "irc", &message()).await?;
+        let second = db.create_message("g", "irc", &message()).await?;
         assert_ne!(first, second);
         Ok(())
     }
@@ -252,7 +470,7 @@ mod tests {
     #[tokio::test]
     async fn finds_the_message_of_a_link() -> sqlx::Result<()> {
         let db = database().await?;
-        let id = db.create_message("g", &author()).await?;
+        let id = db.create_message("g", "irc", &message()).await?;
         db.add_link(id, &link("tg", "-100", "5")).await?;
         assert_eq!(db.find_message(&link("tg", "-100", "5")).await?, Some(id));
         Ok(())
@@ -261,7 +479,7 @@ mod tests {
     #[tokio::test]
     async fn finds_nothing_for_an_unknown_link() -> sqlx::Result<()> {
         let db = database().await?;
-        let id = db.create_message("g", &author()).await?;
+        let id = db.create_message("g", "irc", &message()).await?;
         db.add_link(id, &link("tg", "-100", "5")).await?;
         assert_eq!(db.find_message(&link("tg", "-200", "5")).await?, None);
         Ok(())
@@ -270,8 +488,8 @@ mod tests {
     #[tokio::test]
     async fn rejects_a_platform_message_linked_twice() -> sqlx::Result<()> {
         let db = database().await?;
-        let first = db.create_message("g", &author()).await?;
-        let second = db.create_message("g", &author()).await?;
+        let first = db.create_message("g", "irc", &message()).await?;
+        let second = db.create_message("g", "irc", &message()).await?;
         db.add_link(first, &link("tg", "-100", "5")).await?;
         assert!(db.add_link(second, &link("tg", "-100", "5")).await.is_err());
         Ok(())
@@ -280,7 +498,7 @@ mod tests {
     #[tokio::test]
     async fn lists_links_of_one_backend_in_order() -> sqlx::Result<()> {
         let db = database().await?;
-        let id = db.create_message("g", &author()).await?;
+        let id = db.create_message("g", "irc", &message()).await?;
         db.add_link(id, &link("dc", "1", "20")).await?;
         db.add_link(id, &link("tg", "-100", "5")).await?;
         db.add_link(id, &link("dc", "1", "10")).await?;
@@ -294,7 +512,7 @@ mod tests {
     #[tokio::test]
     async fn remembers_the_author_of_a_message() -> sqlx::Result<()> {
         let db = database().await?;
-        let id = db.create_message("g", &author()).await?;
+        let id = db.create_message("g", "irc", &message()).await?;
         assert_eq!(db.message_author(id).await?, Some(author()));
         Ok(())
     }
@@ -309,7 +527,7 @@ mod tests {
     #[tokio::test]
     async fn finds_messages_without_knowing_the_chat() -> sqlx::Result<()> {
         let db = database().await?;
-        let id = db.create_message("g", &author()).await?;
+        let id = db.create_message("g", "irc", &message()).await?;
         db.add_link(id, &link("tg", "-100", "5")).await?;
         db.add_link(id, &link("dc", "1", "5")).await?;
         assert_eq!(
@@ -335,7 +553,7 @@ mod tests {
     #[tokio::test]
     async fn removes_the_links_of_one_backend() -> sqlx::Result<()> {
         let db = database().await?;
-        let id = db.create_message("g", &author()).await?;
+        let id = db.create_message("g", "irc", &message()).await?;
         db.add_link(id, &link("tg", "-100", "5")).await?;
         db.add_link(id, &link("dc", "1", "7")).await?;
         db.remove_links(id, "tg").await?;

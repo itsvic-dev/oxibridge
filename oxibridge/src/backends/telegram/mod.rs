@@ -247,12 +247,22 @@ async fn deliver(context: &Context, peer: PeerId, event: &MessageEvent) -> TaskR
                     .await?;
             }
         }
-        MessageEvent::Edit(message) => {
+        MessageEvent::Edit(message) | MessageEvent::Reactions(message) => {
+            // the platform message there is the user's own, which the bot cannot edit
+            if context
+                .database
+                .message_origin(message.id)
+                .await?
+                .as_deref()
+                == Some(&context.name)
+            {
+                return Ok(());
+            }
             // only the first message of a bridged message carries its text
             if let Some(&id) = platform_ids(context, message.id, peer).await?.first() {
                 context
                     .client
-                    .edit_message(target, id, render(message))
+                    .edit_message(target, id, render(context, message))
                     .await?;
             }
         }
@@ -271,8 +281,12 @@ async fn deliver(context: &Context, peer: PeerId, event: &MessageEvent) -> TaskR
     Ok(())
 }
 
-fn render(message: &Message) -> InputMessage {
-    let (text, entities) = markdown::bridged(&message.author.full_name(Some(0)), &message.content);
+fn render(context: &Context, message: &Message) -> InputMessage {
+    let (text, entities) = markdown::bridged(
+        &message.author.full_name(Some(0)),
+        &message.content,
+        message.reaction_summary(&context.name).as_deref(),
+    );
     InputMessage::new().text(text).fmt_entities(entities)
 }
 
@@ -285,7 +299,74 @@ async fn receive(context: &Context, chats: &[Chat], update: Update) -> TaskResul
             receive_edit(context, chats, &message).await
         }
         Update::MessageDeleted(deletion) => receive_delete(context, chats, &deletion).await,
+        Update::Raw(raw) => receive_reactions(context, chats, &raw.raw).await,
         _ => Ok(()),
+    }
+}
+
+/// Telegram only sends reaction updates to bots that are admins in the chat.
+async fn receive_reactions(
+    context: &Context,
+    chats: &[Chat],
+    update: &tl::enums::Update,
+) -> TaskResult {
+    let (peer, message_id) = match update {
+        tl::enums::Update::BotMessageReaction(update) => (&update.peer, update.msg_id),
+        tl::enums::Update::BotMessageReactions(update) => (&update.peer, update.msg_id),
+        _ => return Ok(()),
+    };
+    let peer = PeerId::from(peer.clone());
+    let targets: Vec<_> = chats.iter().filter(|c| c.peer == peer).collect();
+    if targets.is_empty() {
+        return Ok(());
+    }
+    let database = &context.database;
+    let Some(id) = database
+        .find_message(&link(context, peer, message_id))
+        .await?
+    else {
+        return Ok(());
+    };
+
+    match update {
+        // one user changed their reactions
+        tl::enums::Update::BotMessageReaction(update) => {
+            for emoji in update.old_reactions.iter().filter_map(emoji_name) {
+                database.add_reaction(id, &context.name, &emoji, -1).await?;
+            }
+            for emoji in update.new_reactions.iter().filter_map(emoji_name) {
+                database.add_reaction(id, &context.name, &emoji, 1).await?;
+            }
+        }
+        // anonymous totals, as in channels
+        tl::enums::Update::BotMessageReactions(update) => {
+            let counts: Vec<_> = update
+                .reactions
+                .iter()
+                .filter_map(|tl::enums::ReactionCount::Count(count)| {
+                    Some((emoji_name(&count.reaction)?, i64::from(count.count)))
+                })
+                .collect();
+            database.set_reactions(id, &context.name, &counts).await?;
+        }
+        _ => {}
+    }
+
+    let Some(core) = database.message(id).await? else {
+        return Ok(());
+    };
+    for chat in targets {
+        chat.group.send(MessageEvent::Reactions(core.clone()));
+    }
+    Ok(())
+}
+
+fn emoji_name(reaction: &tl::enums::Reaction) -> Option<String> {
+    match reaction {
+        tl::enums::Reaction::Emoji(emoji) => Some(emoji.emoticon.clone()),
+        tl::enums::Reaction::CustomEmoji(_) => Some(":emoji:".to_owned()),
+        tl::enums::Reaction::Paid => Some("⭐".to_owned()),
+        tl::enums::Reaction::Empty => None,
     }
 }
 
@@ -308,9 +389,10 @@ async fn receive_new(context: &Context, chats: &[Chat], message: &TgMessage) -> 
         return Ok(());
     }
     for chat in targets {
+        let group = &chat.group;
         let id = context
             .database
-            .create_message(&chat.group.name, &(&core.author).into())
+            .create_message(&group.name, &group.backend_name, &core)
             .await?;
         context.database.add_link(id, &link).await?;
         chat.group
@@ -330,9 +412,14 @@ async fn receive_edit(context: &Context, chats: &[Chat], message: &TgMessage) ->
 
     // edits on the other side only change the text, so the media is not downloaded again
     let core = to_core(context, message, false).await?;
+    context.database.set_content(id, &core.content).await?;
+    let stored = context
+        .database
+        .message(id)
+        .await?
+        .unwrap_or(Message { id, ..core });
     for chat in chats.iter().filter(|c| c.peer == message.peer_id()) {
-        chat.group
-            .send(MessageEvent::Edit(Message { id, ..core.clone() }));
+        chat.group.send(MessageEvent::Edit(stored.clone()));
     }
     Ok(())
 }
@@ -433,6 +520,7 @@ async fn to_core(context: &Context, message: &TgMessage, download: bool) -> Task
         attachments: media.attachments,
         in_reply_to,
         reply_author,
+        reactions: vec![],
     })
 }
 

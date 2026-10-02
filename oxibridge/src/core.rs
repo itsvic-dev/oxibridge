@@ -130,6 +130,45 @@ pub struct Message {
     pub id: i64,
     pub in_reply_to: Option<i64>,
     pub reply_author: Option<PartialAuthor>,
+    pub reactions: Vec<Reaction>,
+}
+
+impl Message {
+    /// Summarizes the reactions made outside `backend`, for example `👍 2 · ❤️ 1`.
+    ///
+    /// Returns [`None`] if there are none.
+    pub fn reaction_summary(&self, backend: &str) -> Option<String> {
+        let mut totals: Vec<(&str, i64)> = vec![];
+        for reaction in self.reactions.iter().filter(|r| r.backend != backend) {
+            match totals
+                .iter_mut()
+                .find(|(emoji, _)| *emoji == reaction.emoji)
+            {
+                Some((_, count)) => *count = count.saturating_add(reaction.count),
+                None => totals.push((&reaction.emoji, reaction.count)),
+            }
+        }
+        if totals.is_empty() {
+            return None;
+        }
+        totals.sort_by_key(|&(_, count)| std::cmp::Reverse(count));
+        Some(
+            totals
+                .iter()
+                .map(|(emoji, count)| format!("{emoji} {count}"))
+                .collect::<Vec<_>>()
+                .join(" · "),
+        )
+    }
+}
+
+/// How many times a message got one emoji as a reaction on one backend.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Reaction {
+    pub backend: String,
+    /// A Unicode emoji, or the name of a custom emoji like `:blobcat:`.
+    pub emoji: String,
+    pub count: i64,
 }
 
 /// A file attached to a message. The file is deleted once the last copy of the attachment is dropped.
@@ -201,6 +240,40 @@ mod tests {
         assert!(!attachment("clip.mp4").await?.is_image());
         assert!(!attachment("noextension").await?.is_image());
         Ok(())
+    }
+
+    fn with_reactions(reactions: &[(&str, &str, i64)]) -> super::Message {
+        super::Message {
+            author: author(None),
+            content: String::new(),
+            attachments: vec![],
+            id: 1,
+            in_reply_to: None,
+            reply_author: None,
+            reactions: reactions
+                .iter()
+                .map(|&(backend, emoji, count)| super::Reaction {
+                    backend: backend.to_owned(),
+                    emoji: emoji.to_owned(),
+                    count,
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn sums_reactions_from_other_backends_by_count() {
+        let message = with_reactions(&[("tg", "❤️", 1), ("dc", "👍", 1), ("tg", "👍", 1)]);
+        assert_eq!(
+            message.reaction_summary("irc").as_deref(),
+            Some("👍 2 · ❤️ 1")
+        );
+    }
+
+    #[test]
+    fn leaves_out_reactions_from_the_target_backend() {
+        let message = with_reactions(&[("tg", "❤️", 1)]);
+        assert_eq!(message.reaction_summary("tg"), None);
     }
 
     #[test]

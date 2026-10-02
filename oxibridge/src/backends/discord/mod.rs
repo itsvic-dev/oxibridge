@@ -8,7 +8,7 @@ use serenity::{
         ChannelId, Context as SerenityContext, CreateAllowedMentions, CreateAttachment,
         CreateWebhook, EditWebhookMessage, EventHandler, ExecuteWebhook, GatewayIntents, GuildId,
         Http, Message as DiscordMessage, MessageId, MessageReferenceKind, MessageType,
-        MessageUpdateEvent, User, UserId, Webhook,
+        MessageUpdateEvent, Reaction as DiscordReaction, ReactionType, User, UserId, Webhook,
     },
     async_trait,
 };
@@ -112,7 +112,9 @@ impl super::Backend for DiscordBackend {
                 .cloned()
                 .collect(),
         };
-        let intents = GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
+        let intents = GatewayIntents::GUILD_MESSAGES
+            | GatewayIntents::GUILD_MESSAGE_REACTIONS
+            | GatewayIntents::MESSAGE_CONTENT;
         let mut client = serenity::Client::builder(&self.token, intents)
             .event_handler(handler)
             .await?;
@@ -233,14 +235,31 @@ async fn deliver(
                     .await?;
             }
         }
-        MessageEvent::Edit(message) => {
-            // only the first message of a bridged message is edited, the rest are overflow
-            if let Some(&id) = message_ids(context, message.id, channel).await?.first() {
-                let (text, mentioned) = text_for(context, http, channel, message).await?;
-                let text: String = text.chars().take(content::MAX_CONTENT_LENGTH).collect();
+        MessageEvent::Edit(message) | MessageEvent::Reactions(message) => {
+            // the platform message there is the user's own, which the webhook cannot edit
+            if context
+                .database
+                .message_origin(message.id)
+                .await?
+                .as_deref()
+                == Some(&context.name)
+            {
+                return Ok(());
+            }
+            let ids = message_ids(context, message.id, channel).await?;
+            if ids.is_empty() {
+                return Ok(());
+            }
+            let (text, mentioned) = text_for(context, http, channel, message).await?;
+            let text = match message.reaction_summary(&context.name) {
+                Some(summary) if text.is_empty() => format!("-# {summary}"),
+                Some(summary) => format!("{text}\n-# {summary}"),
+                None => text,
+            };
+            for (id, piece) in ids.into_iter().zip(content::split(&text)) {
                 let builder = EditWebhookMessage::new()
-                    .content(text)
-                    .allowed_mentions(CreateAllowedMentions::new().users(mentioned));
+                    .content(piece)
+                    .allowed_mentions(CreateAllowedMentions::new().users(mentioned.clone()));
                 webhook.edit_message(http, id, builder).await?;
             }
         }
@@ -359,10 +378,11 @@ impl Handler {
         }
         let link = link(&self.context, message.channel_id, message.id);
         for chat in self.chats_in(message.channel_id) {
+            let group = &chat.group;
             let id = self
                 .context
                 .database
-                .create_message(&chat.group.name, &(&core.author).into())
+                .create_message(&group.name, &group.backend_name, &core)
                 .await?;
             self.context.database.add_link(id, &link).await?;
             chat.group
@@ -384,14 +404,17 @@ impl Handler {
         };
 
         let mentions = event.mentions.as_deref().unwrap_or_default();
-        let core = Message {
+        let content = content::to_core(text, &mention_names(mentions));
+        self.context.database.set_content(id, &content).await?;
+        let core = self.context.database.message(id).await?.unwrap_or(Message {
             id,
             author: author_of(author, None),
-            content: content::to_core(text, &mention_names(mentions)),
+            content,
             attachments: vec![],
             in_reply_to: None,
             reply_author: None,
-        };
+            reactions: vec![],
+        });
         for chat in self.chats_in(event.channel_id) {
             chat.group.send(MessageEvent::Edit(core.clone()));
         }
@@ -409,6 +432,42 @@ impl Handler {
             .await?;
         for chat in self.chats_in(channel) {
             chat.group.send(MessageEvent::Delete(id));
+        }
+        Ok(())
+    }
+
+    async fn receive_reactions(
+        &self,
+        http: &Http,
+        channel: ChannelId,
+        message: MessageId,
+    ) -> TaskResult {
+        if self.chats_in(channel).next().is_none() {
+            return Ok(());
+        }
+        let link = link(&self.context, channel, message);
+        let Some(id) = self.context.database.find_message(&link).await? else {
+            return Ok(());
+        };
+        let reactions: Vec<_> = channel
+            .message(http, message)
+            .await?
+            .reactions
+            .iter()
+            .map(|reaction| {
+                let count = i64::try_from(reaction.count).unwrap_or(i64::MAX);
+                (emoji_name(&reaction.reaction_type), count)
+            })
+            .collect();
+        let database = &self.context.database;
+        database
+            .set_reactions(id, &self.context.name, &reactions)
+            .await?;
+        let Some(core) = database.message(id).await? else {
+            return Ok(());
+        };
+        for chat in self.chats_in(channel) {
+            chat.group.send(MessageEvent::Reactions(core.clone()));
         }
         Ok(())
     }
@@ -459,6 +518,45 @@ impl EventHandler for Handler {
         for message in messages {
             self.report(self.receive_delete(channel, message).await);
         }
+    }
+
+    async fn reaction_add(&self, ctx: SerenityContext, reaction: DiscordReaction) {
+        let result = self
+            .receive_reactions(&ctx.http, reaction.channel_id, reaction.message_id)
+            .await;
+        self.report(result);
+    }
+
+    async fn reaction_remove(&self, ctx: SerenityContext, reaction: DiscordReaction) {
+        let result = self
+            .receive_reactions(&ctx.http, reaction.channel_id, reaction.message_id)
+            .await;
+        self.report(result);
+    }
+
+    async fn reaction_remove_all(
+        &self,
+        ctx: SerenityContext,
+        channel: ChannelId,
+        message: MessageId,
+    ) {
+        self.report(self.receive_reactions(&ctx.http, channel, message).await);
+    }
+
+    async fn reaction_remove_emoji(&self, ctx: SerenityContext, reaction: DiscordReaction) {
+        let result = self
+            .receive_reactions(&ctx.http, reaction.channel_id, reaction.message_id)
+            .await;
+        self.report(result);
+    }
+}
+
+/// Unicode emoji stay as they are, custom emoji become `:name:`.
+fn emoji_name(reaction: &ReactionType) -> String {
+    match reaction {
+        ReactionType::Unicode(emoji) => emoji.clone(),
+        ReactionType::Custom { name, .. } => format!(":{}:", name.as_deref().unwrap_or("emoji")),
+        _ => "❔".to_owned(),
     }
 }
 
@@ -557,6 +655,7 @@ async fn to_core(context: &Context, http: &Http, message: &DiscordMessage) -> Ta
         attachments,
         in_reply_to,
         reply_author,
+        reactions: vec![],
     })
 }
 
