@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO messages\n            (group_name, backend, author_username, author_display_name, author_source, content, in_reply_to)\n            VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id AS \"id!\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "messages",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "fe288885705b68784338af48c391c32f9f5802bbf7bd180659fbbe6ef8c3dec5"
+}

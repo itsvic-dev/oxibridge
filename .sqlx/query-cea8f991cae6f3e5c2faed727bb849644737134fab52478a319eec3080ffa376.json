@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM reactions WHERE message_id = ? AND backend = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "cea8f991cae6f3e5c2faed727bb849644737134fab52478a319eec3080ffa376"
+}

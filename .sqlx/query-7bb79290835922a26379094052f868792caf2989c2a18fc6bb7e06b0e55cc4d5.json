@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM reactions WHERE message_id = ? AND count <= 0",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "7bb79290835922a26379094052f868792caf2989c2a18fc6bb7e06b0e55cc4d5"
+}

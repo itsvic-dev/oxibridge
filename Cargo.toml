@@ -1,40 +1,10 @@
-[package]
-name = "oxibridge"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-async-tempfile = "0.6.0"
-color-eyre = "0.6.3"
-futures = "0.3.32"
-irc = "1.1.0"
-markdown = "1.0.0-alpha.21"
-regex = "1.11.1"
-reqwest = { version = "0.12", default-features = false, features = [
-  "http2",
-  "rustls-tls",
-  "stream",
-  "json",
-] }
-rust-s3 = { version = "0.35.1", default-features = false, features = [
-  "tokio-rustls-tls",
-] }
-serde = { version = "1.0.215", features = ["derive"] }
-serde_json = "1.0.140"
-serde_yaml = "0.9.34"
-serenity = "0.12.4"
-sha256 = "1.5.0"
-teloxide = { version = "0.13.0", default-features = false, features = [
-  "rustls",
-  "macros",
-] }
-tokio = { version = "1.41.1", features = ["rt-multi-thread", "macros"] }
-tracing = "0.1.40"
-tracing-error = "0.2.0"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+[workspace]
+resolver = "3"
+members = ["oxibridge"]
 
 [workspace.lints.clippy]
 cargo = { level = "warn", priority = -1 }
+multiple-crate-versions = { level = "allow" }
 complexity = { level = "warn", priority = -1 }
 nursery = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
@@ -70,7 +40,6 @@ rest_pat_in_fully_bound_structs = "warn"
 semicolon_outside_block = "warn"
 str_to_string = "warn"
 string_lit_chars_any = "warn"
-string_to_string = "warn"
 tests_outside_test_module = "warn"
 todo = "warn"
 try_err = "warn"

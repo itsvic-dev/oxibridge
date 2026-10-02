@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT key, value FROM backend_state WHERE backend = ? ORDER BY key",
+  "describe": {
+    "columns": [
+      {
+        "name": "key",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "backend_state",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "name": "value",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "backend_state",
+            "name": "value"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "dc0300bafc1067bcebfc554c145693ef02a9abc877b9c6cf56fa10fd58d662ee"
+}
