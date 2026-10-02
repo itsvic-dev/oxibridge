@@ -212,20 +212,6 @@ pub struct Attachment {
     pub spoilered: bool,
 }
 
-impl Attachment {
-    /// Whether the file should be shown as an image, judging by its extension.
-    pub fn is_image(&self) -> bool {
-        let extension = std::path::Path::new(&self.filename)
-            .extension()
-            .and_then(|extension| extension.to_str())
-            .map(str::to_ascii_lowercase);
-        matches!(
-            extension.as_deref(),
-            Some("png" | "jpg" | "jpeg" | "webp" | "gif")
-        )
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::{Author, Source};
@@ -256,22 +242,6 @@ mod tests {
             author(Some(&name)).full_name(Some(0)),
             format!("{name} (@irc/nick)")
         );
-    }
-
-    async fn attachment(filename: &str) -> Result<super::Attachment, async_tempfile::Error> {
-        Ok(super::Attachment {
-            file: std::sync::Arc::new(async_tempfile::TempFile::new().await?),
-            filename: filename.to_owned(),
-            spoilered: false,
-        })
-    }
-
-    #[tokio::test]
-    async fn recognizes_images_by_extension() -> Result<(), async_tempfile::Error> {
-        assert!(attachment("photo.JPG").await?.is_image());
-        assert!(!attachment("clip.mp4").await?.is_image());
-        assert!(!attachment("noextension").await?.is_image());
-        Ok(())
     }
 
     fn with_reactions(reactions: &[(&str, &str, i64)]) -> super::Message {
