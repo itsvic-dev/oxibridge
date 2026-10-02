@@ -41,7 +41,9 @@ impl Config {
     pub fn validate(&self) -> Result<(), String> {
         for (group_name, group) in &self.groups {
             if let Some(name) = group.keys().find(|name| !self.backends.contains_key(*name)) {
-                return Err(format!("group '{group_name}' uses unknown backend '{name}'"));
+                return Err(format!(
+                    "group '{group_name}' uses unknown backend '{name}'"
+                ));
             }
         }
         Ok(())
@@ -150,7 +152,10 @@ mod tests {
     #[test]
     fn later_files_override_earlier_values() -> Result<(), serde_yaml::Error> {
         let result = merged(&["a: { x: 1, list: [1, 2] }", "a: { x: 2, list: [3] }"])?;
-        assert_eq!(result, serde_yaml::from_str::<Value>("a: { x: 2, list: [3] }")?);
+        assert_eq!(
+            result,
+            serde_yaml::from_str::<Value>("a: { x: 2, list: [3] }")?
+        );
         Ok(())
     }
 
@@ -163,8 +168,7 @@ mod tests {
 
     #[test]
     fn accepts_the_example_config() -> Result<(), serde_yaml::Error> {
-        let config: Config =
-            serde_yaml::from_str(include_str!("../../config.example.yml"))?;
+        let config: Config = serde_yaml::from_str(include_str!("../../config.example.yml"))?;
         assert_eq!(config.validate(), Ok(()));
         Ok(())
     }

@@ -164,7 +164,10 @@ async fn receive(database: &Database, channels: &[Channel], message: &IrcMessage
         source: Source::Irc,
     };
 
-    for channel in channels.iter().filter(|c| c.name.eq_ignore_ascii_case(target)) {
+    for channel in channels
+        .iter()
+        .filter(|c| c.name.eq_ignore_ascii_case(target))
+    {
         let id = match database
             .create_message(&channel.group.name, &(&author).into())
             .await

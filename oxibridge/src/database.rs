@@ -162,7 +162,10 @@ impl Database {
         )
         .fetch_all(&self.pool)
         .await?;
-        Ok(rows.into_iter().map(|row| (row.message_id, row.chat)).collect())
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.message_id, row.chat))
+            .collect())
     }
 
     /// Returns all state values that `backend` stored with [`Self::set_state`], as `(key, value)` pairs.

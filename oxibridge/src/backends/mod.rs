@@ -10,10 +10,10 @@ use tokio::{
     task::JoinSet,
 };
 
+pub mod discord;
 pub mod file;
 pub mod irc;
 pub mod telegram;
-pub mod discord;
 
 /// Creates the backend described by `backend_config`.
 ///

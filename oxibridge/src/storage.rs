@@ -6,7 +6,7 @@ use std::{
 use async_tempfile::TempFile;
 use color_eyre::Result;
 use log::debug;
-use s3::{creds::Credentials, Bucket, Region};
+use s3::{Bucket, Region, creds::Credentials};
 use tokio::io::AsyncReadExt;
 
 use crate::config::R2Config;

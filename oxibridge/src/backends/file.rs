@@ -74,11 +74,9 @@ impl super::Backend for FileBackend {
                 tasks.spawn(async move {
                     while let Some(msg) = rx.recv().await {
                         let event = match msg.event {
-                            MessageEvent::Create(message) => format!(
-                                "{}: {}",
-                                message.author.full_name(None),
-                                message.content
-                            ),
+                            MessageEvent::Create(message) => {
+                                format!("{}: {}", message.author.full_name(None), message.content)
+                            }
                             MessageEvent::Edit(message) => format!(
                                 "[edit #{}] {}: {}",
                                 message.id,
