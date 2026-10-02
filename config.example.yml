@@ -1,8 +1,10 @@
-# This is the configuration file for Oxibridge.
+# Several config files can be merged by listing them in CONFIG_FILE, separated by ':'.
 
 global:
-  # Optional. Used for bridging avatars from Telegram to Discord without exposing the bot token.
-  # If you don't want to use R2, simply remove the 'r2' section.
+  # Optional. SQLite database of bridged messages and backend state. Default: oxibridge.db
+  database: oxibridge.db
+
+  # Optional. Not used yet; will host Telegram avatars for Discord without exposing the bot token.
   r2:
     bucket_name: "oxibridge-avatars"
     account_id: ""
@@ -10,31 +12,39 @@ global:
     access_key: ""
     secret_key: ""
 
-  cache:
-    # Available types: memory
-    # Default: memory
-    # TODO: expand to other types (redis, sqlite)
-    kind: memory
-
+# Each backend is one account on one platform. Groups refer to backends by name.
 backends:
-  # You can define multiple backends for groups. Useful for isolation.
   telegram01:
     kind: telegram
-    # You can obtain a bot token from @BotFather on Telegram
+    # Bot token from @BotFather on Telegram
     token: "PLACEHOLDER"
+    # API ID and hash from https://my.telegram.org
+    api_id: 12345
+    api_hash: "PLACEHOLDER"
 
   discord01:
     kind: discord
-    # You can obtain a bot token from https://discord.com/developers/applications
-    # Required permissions: View Channels, Manage Webhooks (536871936)
+    # Needs the Message Content intent, and View Channels, Read Message History, Manage Webhooks (536937472)
     token: "PLACEHOLDER"
 
-# You can define multiple groups here to bridge multiple channels.
+  libera:
+    kind: irc
+    server: irc.libera.chat
+    nickname: oxibridge
+    # Optional. Defaults to 6697 with TLS and 6667 without
+    port: 6697
+    # Optional. Default: true
+    use_tls: true
+
+# A group bridges one chat of each of its backends.
 groups:
   example_group:
     telegram01:
-      # raw peer IDs must be prefixed with '-100' for the bot API
+      # Bot API chat ID: supergroups and channels start with -100
       chat: -1001234567890
     discord01:
-      guild: 1234567890000
       channel: 1234567890000
+    libera:
+      channel: "#oxibridge"
+      # Optional for every backend. readonly only reads from this chat, writeonly only writes to it.
+      readonly: false

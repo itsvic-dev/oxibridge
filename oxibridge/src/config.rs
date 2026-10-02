@@ -162,6 +162,14 @@ mod tests {
     }
 
     #[test]
+    fn accepts_the_example_config() -> Result<(), serde_yaml::Error> {
+        let config: Config =
+            serde_yaml::from_str(include_str!("../../config.example.yml"))?;
+        assert_eq!(config.validate(), Ok(()));
+        Ok(())
+    }
+
+    #[test]
     fn accepts_groups_with_known_backends() -> Result<(), serde_yaml::Error> {
         let config: Config = serde_yaml::from_str(
             "
