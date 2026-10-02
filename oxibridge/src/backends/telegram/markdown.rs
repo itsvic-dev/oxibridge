@@ -400,6 +400,14 @@ fn tag(entity: &MessageEntity) -> Option<Tag> {
         MessageEntity::Strike(e) => simple(e.offset, e.length, "~~"),
         MessageEntity::Spoiler(e) => simple(e.offset, e.length, "||"),
         MessageEntity::Code(e) => simple(e.offset, e.length, "`"),
+        // spans only the "@" of "@username", so the result is "@tg/username"
+        MessageEntity::Mention(e) => Tag {
+            offset: e.offset,
+            length: 1,
+            open: String::new(),
+            close: "tg/".to_owned(),
+            quote: false,
+        },
         MessageEntity::Blockquote(e) => Tag {
             offset: e.offset,
             length: e.length,
@@ -640,6 +648,19 @@ mod tests {
         assert_eq!(
             bridged("🦀", "*hi*", None, &Mentions::new()),
             ("🦀\nhi".to_owned(), vec![bold(0, 2), italic(3, 2)])
+        );
+    }
+
+    #[test]
+    fn tags_username_mentions_with_the_platform() {
+        let mention: MessageEntity = types::MessageEntityMention {
+            offset: 3,
+            length: 4,
+        }
+        .into();
+        assert_eq!(
+            to_markdown("hi @bob!", &[mention, bold(3, 4)]),
+            "hi **@tg/bob**!"
         );
     }
 
