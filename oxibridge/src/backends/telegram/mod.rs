@@ -18,7 +18,7 @@ use tokio::task::JoinSet;
 
 use crate::{
     backends::{BackendGroup, MessageEvent},
-    core::{Author, Message, Source},
+    core::{Author, Avatar, Message, Source},
     database::{Database, Link},
 };
 
@@ -59,6 +59,7 @@ struct Context {
     client: Client,
     session: Arc<StoredSession>,
     database: Database,
+    avatars: media::Avatars,
 }
 
 pub struct TelegramBackend {
@@ -132,6 +133,7 @@ impl super::Backend for TelegramBackend {
             client: client.clone(),
             session,
             database: self.database.clone(),
+            avatars: media::Avatars::default(),
         };
 
         for chat in self.chats.iter().filter(|c| !c.group.config.readonly) {
@@ -375,7 +377,19 @@ async fn receive_delete(
 
 /// Converts `message` to a core message, with ID 0 for the caller to replace.
 async fn to_core(context: &Context, message: &TgMessage, download: bool) -> TaskResult<Message> {
-    let author = author_of(message);
+    let mut author = author_of(message);
+    if download && let Some(peer) = message.sender().or_else(|| message.peer()) {
+        author.avatar = match context.avatars.get(&context.client, peer).await {
+            Ok(file) => file.map(Avatar::File),
+            Err(e) => {
+                warn!(
+                    "TelegramBackend '{}' failed to download an avatar: {e}",
+                    context.name
+                );
+                None
+            }
+        };
+    }
     let media = media::incoming(
         &context.client,
         message,

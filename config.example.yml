@@ -4,7 +4,7 @@ global:
   # Optional. SQLite database of bridged messages and backend state. Default: oxibridge.db
   database: oxibridge.db
 
-  # Optional. Not used yet; will host Telegram avatars for Discord without exposing the bot token.
+  # Optional. Hosts Telegram avatars for Discord without exposing the bot token. Without it, Telegram users have no avatar on Discord.
   r2:
     bucket_name: "oxibridge-avatars"
     account_id: ""

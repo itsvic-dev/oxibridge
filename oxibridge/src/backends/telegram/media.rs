@@ -1,13 +1,15 @@
-use std::{error::Error, sync::Arc};
+use std::{collections::HashMap, error::Error, sync::Arc};
 
 use async_tempfile::TempFile;
 use grammers_client::{
     Client,
     media::{Document, InputMedia, Media, Uploaded},
     message::{InputMessage, Message as TgMessage},
+    peer::Peer,
     session::types::PeerRef,
     tl,
 };
+use tokio::sync::Mutex;
 
 use crate::core::{Attachment, Message};
 
@@ -17,6 +19,34 @@ const MAX_DOWNLOAD_BYTES: usize = 50 * 1024 * 1024;
 const MAX_CAPTION_LENGTH: usize = 1024;
 
 type MediaResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
+
+/// Profile photos of message authors, cached by photo ID.
+#[derive(Clone, Default)]
+pub struct Avatars(Arc<Mutex<HashMap<i64, Arc<TempFile>>>>);
+
+impl Avatars {
+    /// Returns the small profile photo of `peer`, and downloads it if it is not cached.
+    pub async fn get(&self, client: &Client, peer: &Peer) -> MediaResult<Option<Arc<TempFile>>> {
+        let id = match peer {
+            Peer::User(user) => user.photo().map(|photo| photo.photo_id),
+            Peer::Group(group) => group.photo().map(|photo| photo.photo_id),
+            Peer::Channel(channel) => channel.photo().map(|photo| photo.photo_id),
+        };
+        let Some(id) = id else {
+            return Ok(None);
+        };
+        if let Some(file) = self.0.lock().await.get(&id) {
+            return Ok(Some(Arc::clone(file)));
+        }
+        let Some(photo) = peer.photo(false).await? else {
+            return Ok(None);
+        };
+        let file = Arc::new(TempFile::new().await?);
+        client.download_media(&photo, file.file_path()).await?;
+        self.0.lock().await.insert(id, Arc::clone(&file));
+        Ok(Some(file))
+    }
+}
 
 /// What a message's media turns into on the core side.
 #[derive(Default)]
