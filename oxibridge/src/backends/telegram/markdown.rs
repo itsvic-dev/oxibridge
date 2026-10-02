@@ -260,6 +260,15 @@ fn inline<'a>(rest: &'a str, previous: Option<char>, out: &mut Builder) -> Optio
         }
     }
 
+    if let Some(body) = rest.strip_prefix('<')
+        && let Some((url, after)) = body.split_once('>')
+        && (url.starts_with("https://") || url.starts_with("http://"))
+        && !url.contains(char::is_whitespace)
+    {
+        out.wrap(Kind::TextUrl(url.to_owned()), |out| out.push(url));
+        return Some(after);
+    }
+
     rest.strip_prefix('[')
         .and_then(|body| masked_link(body, out))
 }
@@ -318,6 +327,11 @@ fn code_block(content: &str) -> (String, &str) {
 fn masked_link<'a>(body: &'a str, out: &mut Builder) -> Option<&'a str> {
     let (text, after) = body.split_once("](")?;
     let (url, after) = after.split_once(')')?;
+    // Discord hides the link preview for URLs in angle brackets
+    let url = url
+        .strip_prefix('<')
+        .and_then(|url| url.strip_suffix('>'))
+        .unwrap_or(url);
     let is_web = url.starts_with("https://") || url.starts_with("http://");
     if text.is_empty() || text.contains('\n') || !is_web || url.contains(char::is_whitespace) {
         return None;
@@ -648,6 +662,20 @@ mod tests {
         assert_eq!(
             bridged("🦀", "*hi*", None, &Mentions::new()),
             ("🦀\nhi".to_owned(), vec![bold(0, 2), italic(3, 2)])
+        );
+    }
+
+    #[test]
+    fn removes_the_angle_brackets_of_links() {
+        assert_eq!(
+            parsed("<https://x.y> [a](<https://z.w>) <b>"),
+            (
+                "https://x.y a <b>".to_owned(),
+                vec![
+                    text_url(0, 11, "https://x.y"),
+                    text_url(12, 1, "https://z.w")
+                ]
+            )
         );
     }
 
