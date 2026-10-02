@@ -29,6 +29,7 @@ irc = { version = "1.1", default-features = false, features = ["ctcp", "tls-rust
 grammers-client = { version = "0.10", default-features = false, features = ["fs"] }
 grammers-session = { version = "0.10", default-features = false, features = ["serde"] }
 serenity = { version = "0.12", default-features = false, features = ["builder", "client", "gateway", "model", "http", "utils", "rustls_backend"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 [lints]
 workspace = true

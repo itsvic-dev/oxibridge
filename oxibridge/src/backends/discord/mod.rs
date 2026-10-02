@@ -22,6 +22,7 @@ use crate::{
 };
 
 mod content;
+mod refresh;
 
 type TaskResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 
@@ -53,6 +54,8 @@ struct Context {
     name: String,
     database: Database,
     storage: Option<Arc<R2Storage>>,
+    // for API calls that serenity does not have
+    web: reqwest::Client,
 }
 
 pub struct DiscordBackend {
@@ -102,6 +105,7 @@ impl super::Backend for DiscordBackend {
             name: self.name.clone(),
             database: self.database.clone(),
             storage: self.storage.clone(),
+            web: reqwest::Client::new(),
         };
         let handler = Handler {
             context: context.clone(),
@@ -423,7 +427,7 @@ impl Handler {
         Ok(())
     }
 
-    async fn receive_edit(&self, event: &MessageUpdateEvent) -> TaskResult {
+    async fn receive_edit(&self, http: &Http, event: &MessageUpdateEvent) -> TaskResult {
         let (Some(author), Some(text)) = (&event.author, &event.content) else {
             return Ok(());
         };
@@ -436,7 +440,7 @@ impl Handler {
         };
 
         let mentions = event.mentions.as_deref().unwrap_or_default();
-        let content = content::to_core(text, &mention_names(mentions));
+        let content = core_content(&self.context, http, text, mentions).await;
         self.context.database.set_content(id, &content).await?;
         let core = self.context.database.message(id).await?.unwrap_or(Message {
             id,
@@ -522,12 +526,12 @@ impl EventHandler for Handler {
 
     async fn message_update(
         &self,
-        _ctx: SerenityContext,
+        ctx: SerenityContext,
         _old: Option<DiscordMessage>,
         _new: Option<DiscordMessage>,
         event: MessageUpdateEvent,
     ) {
-        self.report(self.receive_edit(&event).await);
+        self.report(self.receive_edit(&ctx.http, &event).await);
     }
 
     async fn message_delete(
@@ -616,6 +620,21 @@ fn author_of(user: &User, nickname: Option<&str>) -> Author {
     }
 }
 
+/// Converts message text to core content, with fresh attachment links.
+async fn core_content(context: &Context, http: &Http, text: &str, mentions: &[User]) -> String {
+    let content = content::to_core(text, &mention_names(mentions));
+    match refresh::refresh_links(&context.web, http.token(), &content).await {
+        Ok(refreshed) => refreshed,
+        Err(e) => {
+            warn!(
+                "DiscordBackend '{}' failed to refresh attachment links: {e}",
+                context.name
+            );
+            content
+        }
+    }
+}
+
 /// Converts `message` to a core message, with ID 0 for the caller to replace.
 async fn to_core(context: &Context, http: &Http, message: &DiscordMessage) -> TaskResult<Message> {
     let nickname = message
@@ -655,7 +674,7 @@ async fn to_core(context: &Context, http: &Http, message: &DiscordMessage) -> Ta
             attachments.push(attachment_from(&file.download().await?, &file.filename).await?);
         }
     }
-    parts.push(content::to_core(text, &mention_names(mentions)));
+    parts.push(core_content(context, http, text, mentions).await);
 
     let reply = message
         .message_reference

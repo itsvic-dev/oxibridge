@@ -2034,6 +2034,7 @@ dependencies = [
  "grammers-session",
  "irc",
  "log",
+ "reqwest",
  "rust-s3",
  "serde",
  "serde_json",
