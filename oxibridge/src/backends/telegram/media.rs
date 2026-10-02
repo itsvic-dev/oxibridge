@@ -121,16 +121,14 @@ pub async fn incoming(
         Media::Document(document) if document.raw.round => Some("*Video message*".to_owned()),
         Media::Document(_) => None,
         Media::Sticker(sticker) => {
-            let kind = if sticker.is_animated() {
-                "animated sticker"
-            } else {
-                "sticker"
-            };
+            // grammers' is_animated() means GIF; Lottie stickers are TGS files no other platform shows
+            let lottie = sticker.document.mime_type() == Some("application/x-tgsticker");
+            let kind = if lottie { "animated sticker" } else { "sticker" };
             let label = match sticker_sets.link(client, sticker).await {
                 Some(set) => format!("*{} {kind} from {set}*", sticker.emoji()),
                 None => format!("*{} {kind}*", sticker.emoji()),
             };
-            if sticker.is_animated() {
+            if lottie {
                 return Ok(Incoming {
                     label: Some(label),
                     attachments: vec![],
