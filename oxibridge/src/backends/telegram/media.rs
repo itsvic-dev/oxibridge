@@ -96,7 +96,7 @@ pub struct Incoming {
     pub attachments: Vec<Attachment>,
 }
 
-/// Converts the media and service action of `message`. Files are only downloaded if `download` is set.
+/// Converts the media of `message`. Files are only downloaded if `download` is set.
 pub async fn incoming(
     client: &Client,
     sticker_sets: &StickerSets,
@@ -104,13 +104,6 @@ pub async fn incoming(
     author_name: &str,
     download: bool,
 ) -> MediaResult<Incoming> {
-    if let Some(action) = message.action() {
-        return Ok(Incoming {
-            label: action_text(action, author_name),
-            attachments: vec![],
-        });
-    }
-
     let Some(media) = message.media() else {
         return Ok(Incoming::default());
     };
@@ -123,7 +116,11 @@ pub async fn incoming(
         Media::Sticker(sticker) => {
             // grammers' is_animated() means GIF; Lottie stickers are TGS files no other platform shows
             let lottie = sticker.document.mime_type() == Some("application/x-tgsticker");
-            let kind = if lottie { "animated sticker" } else { "sticker" };
+            let kind = if lottie {
+                "animated sticker"
+            } else {
+                "sticker"
+            };
             let label = match sticker_sets.link(client, sticker).await {
                 Some(set) => format!("*{} {kind} from {set}*", sticker.emoji()),
                 None => format!("*{} {kind}*", sticker.emoji()),
@@ -317,22 +314,57 @@ fn document_name(document: &Document) -> String {
     format!("file.{extension}")
 }
 
+/// What a service message refers to, beyond its sender.
+#[derive(Default)]
+pub struct ActionDetails {
+    /// Bare user ID of the sender.
+    pub sender: Option<i64>,
+    /// Names of the users that the action adds or removes, by bare user ID.
+    pub names: HashMap<i64, String>,
+    /// Content of the pinned message.
+    pub pinned: Option<String>,
+}
+
 /// Describes a service message, like someone joining. Returns [`None`] for actions that are not bridged.
-fn action_text(action: &tl::enums::MessageAction, author_name: &str) -> Option<String> {
+pub fn action_text(
+    action: &tl::enums::MessageAction,
+    author_name: &str,
+    details: &ActionDetails,
+) -> Option<String> {
     use tl::enums::MessageAction;
 
+    let name = |id: &i64| {
+        details
+            .names
+            .get(id)
+            .map_or("someone", String::as_str)
+            .to_owned()
+    };
     Some(match action {
-        MessageAction::ChatAddUser(added) if added.users.len() == 1 => {
+        MessageAction::ChatAddUser(added)
+            if added.users.as_slice() == details.sender.as_slice() =>
+        {
             format!("*{author_name} joined the chat*")
         }
         MessageAction::ChatAddUser(added) => {
-            format!("*{author_name} added {} people*", added.users.len())
+            let names: Vec<_> = added.users.iter().map(name).collect();
+            format!("*{author_name} added {}*", names.join(", "))
         }
         MessageAction::ChatJoinedByLink(_) | MessageAction::ChatJoinedByRequest => {
             format!("*{author_name} joined the chat*")
         }
-        MessageAction::ChatDeleteUser(_) => format!("*{author_name} left the chat*"),
-        MessageAction::PinMessage => format!("*{author_name} pinned a message*"),
+        MessageAction::ChatDeleteUser(removed) if Some(removed.user_id) == details.sender => {
+            format!("*{author_name} left the chat*")
+        }
+        MessageAction::ChatDeleteUser(removed) => {
+            format!("*{author_name} removed {}*", name(&removed.user_id))
+        }
+        MessageAction::PinMessage => {
+            match details.pinned.as_deref().filter(|text| !text.is_empty()) {
+                Some(text) => format!("*{author_name} pinned a message:*\n{text}"),
+                None => format!("*{author_name} pinned a message*"),
+            }
+        }
         _ => return None,
     })
 }
@@ -442,7 +474,7 @@ fn slot_text(value: i32) -> String {
 mod tests {
     use grammers_client::tl;
 
-    use super::{action_text, dice_text, location_url};
+    use super::{ActionDetails, action_text, dice_text, location_url};
 
     #[test]
     fn shows_dice_faces() {
@@ -465,18 +497,59 @@ mod tests {
         assert_eq!(dice_text("🃏", 2), "🃏 2");
     }
 
+    fn details(sender: i64, names: &[(i64, &str)]) -> ActionDetails {
+        ActionDetails {
+            sender: Some(sender),
+            names: names
+                .iter()
+                .map(|&(id, name)| (id, name.to_owned()))
+                .collect(),
+            pinned: None,
+        }
+    }
+
     #[test]
     fn describes_joins_and_leaves() {
-        let joined = tl::enums::MessageAction::ChatJoinedByRequest;
+        let joined: tl::enums::MessageAction =
+            tl::types::MessageActionChatAddUser { users: vec![1] }.into();
         let left: tl::enums::MessageAction =
             tl::types::MessageActionChatDeleteUser { user_id: 1 }.into();
         assert_eq!(
-            action_text(&joined, "Vic").as_deref(),
+            action_text(&joined, "Vic", &details(1, &[])).as_deref(),
             Some("*Vic joined the chat*")
         );
         assert_eq!(
-            action_text(&left, "Vic").as_deref(),
+            action_text(&left, "Vic", &details(1, &[])).as_deref(),
             Some("*Vic left the chat*")
+        );
+    }
+
+    #[test]
+    fn names_the_users_others_add_or_remove() {
+        let added: tl::enums::MessageAction =
+            tl::types::MessageActionChatAddUser { users: vec![2, 3] }.into();
+        let removed: tl::enums::MessageAction =
+            tl::types::MessageActionChatDeleteUser { user_id: 2 }.into();
+        let details = details(1, &[(2, "Bob")]);
+        assert_eq!(
+            action_text(&added, "Vic", &details).as_deref(),
+            Some("*Vic added Bob, someone*")
+        );
+        assert_eq!(
+            action_text(&removed, "Vic", &details).as_deref(),
+            Some("*Vic removed Bob*")
+        );
+    }
+
+    #[test]
+    fn shows_the_pinned_message() {
+        let details = ActionDetails {
+            pinned: Some("hello".to_owned()),
+            ..ActionDetails::default()
+        };
+        assert_eq!(
+            action_text(&tl::enums::MessageAction::PinMessage, "Vic", &details).as_deref(),
+            Some("*Vic pinned a message:*\nhello")
         );
     }
 
@@ -486,7 +559,7 @@ mod tests {
             title: "x".to_owned(),
         }
         .into();
-        assert_eq!(action_text(&action, "Vic"), None);
+        assert_eq!(action_text(&action, "Vic", &ActionDetails::default()), None);
     }
 
     #[test]

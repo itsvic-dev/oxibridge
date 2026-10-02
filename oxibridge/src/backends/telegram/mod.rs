@@ -522,14 +522,27 @@ async fn to_core(context: &Context, message: &TgMessage, download: bool) -> Task
             }
         };
     }
-    let media = media::incoming(
-        &context.client,
-        &context.sticker_sets,
-        message,
-        &author.full_name(Some(0)),
-        download,
-    )
-    .await?;
+    let author_name = author.full_name(Some(0));
+    let media = match message.action() {
+        Some(action) => media::Incoming {
+            label: media::action_text(
+                action,
+                &author_name,
+                &action_details(context, message, action).await,
+            ),
+            attachments: vec![],
+        },
+        None => {
+            media::incoming(
+                &context.client,
+                &context.sticker_sets,
+                message,
+                &author_name,
+                download,
+            )
+            .await?
+        }
+    };
     let text = markdown::to_markdown(
         message.text(),
         message.fmt_entities().map_or(&[], Vec::as_slice),
@@ -568,6 +581,43 @@ async fn to_core(context: &Context, message: &TgMessage, download: bool) -> Task
         reply_author,
         reactions: vec![],
     })
+}
+
+async fn action_details(
+    context: &Context,
+    message: &TgMessage,
+    action: &tl::enums::MessageAction,
+) -> media::ActionDetails {
+    let mut details = media::ActionDetails {
+        sender: message.sender_id().and_then(PeerId::bare_id),
+        ..media::ActionDetails::default()
+    };
+    let users = match action {
+        tl::enums::MessageAction::ChatAddUser(added) => added.users.clone(),
+        tl::enums::MessageAction::ChatDeleteUser(removed) => vec![removed.user_id],
+        tl::enums::MessageAction::PinMessage => {
+            details.pinned = message.get_reply().await.ok().flatten().map(|pinned| {
+                markdown::to_markdown(
+                    pinned.text(),
+                    pinned.fmt_entities().map_or(&[], Vec::as_slice),
+                )
+            });
+            vec![]
+        }
+        _ => vec![],
+    };
+    for id in users.into_iter().filter(|&id| Some(id) != details.sender) {
+        if let Some(name) = user_name(context, id).await {
+            details.names.insert(id, name);
+        }
+    }
+    details
+}
+
+async fn user_name(context: &Context, id: i64) -> Option<String> {
+    let peer = peer_ref(context, PeerId::user(id)?).await;
+    let peer = context.client.resolve_peer(peer).await.ok()?;
+    peer_name(&peer)
 }
 
 async fn forward_header(context: &Context, message: &TgMessage) -> Option<String> {
