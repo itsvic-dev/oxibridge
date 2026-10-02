@@ -417,7 +417,8 @@ impl Handler {
                 .await?;
             self.context.database.add_link(id, &link).await?;
             chat.group
-                .send(MessageEvent::Create(Message { id, ..core.clone() }));
+                .send(MessageEvent::Create(Message { id, ..core.clone() }))
+                .await;
         }
         Ok(())
     }
@@ -447,7 +448,7 @@ impl Handler {
             reactions: vec![],
         });
         for chat in self.chats_in(event.channel_id) {
-            chat.group.send(MessageEvent::Edit(core.clone()));
+            chat.group.send(MessageEvent::Edit(core.clone())).await;
         }
         Ok(())
     }
@@ -462,7 +463,7 @@ impl Handler {
             .remove_links(id, &self.context.name)
             .await?;
         for chat in self.chats_in(channel) {
-            chat.group.send(MessageEvent::Delete(id));
+            chat.group.send(MessageEvent::Delete(id)).await;
         }
         Ok(())
     }
@@ -498,7 +499,7 @@ impl Handler {
             return Ok(());
         };
         for chat in self.chats_in(channel) {
-            chat.group.send(MessageEvent::Reactions(core.clone()));
+            chat.group.send(MessageEvent::Reactions(core.clone())).await;
         }
         Ok(())
     }

@@ -41,6 +41,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .map(storage::R2Storage::new)
         .transpose()?
         .map(Arc::new);
+    let (ready_tx, ready) = tokio::sync::watch::channel(false);
 
     let backends = config
         .backends
@@ -54,6 +55,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     backend_name: name.clone(),
                     config: config[name].clone(),
                     tx: tx.clone(),
+                    ready: ready.clone(),
                 })
                 .collect();
 
@@ -72,6 +74,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         debug!("Bringing up backend {name}");
         backend.start(&mut tasks).await?;
     }
+    ready_tx.send_replace(true);
 
     while let Some(result) = tasks.join_next().await {
         if let Err(e) = result {

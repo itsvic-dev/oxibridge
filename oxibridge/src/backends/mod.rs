@@ -7,7 +7,10 @@ use crate::{
 };
 use log::{debug, warn};
 use tokio::{
-    sync::broadcast::{self, error::RecvError},
+    sync::{
+        broadcast::{self, error::RecvError},
+        watch,
+    },
     task::JoinSet,
 };
 
@@ -70,11 +73,19 @@ pub struct BackendGroup {
     pub backend_name: String,
     pub config: GroupBackendConfig,
     pub tx: broadcast::Sender<BackendMessage>,
+    /// Becomes true once all backends have started, and so subscribed to their groups.
+    pub ready: watch::Receiver<bool>,
 }
 
 impl BackendGroup {
     /// Broadcasts an event to the other backends in this group.
-    pub fn send(&self, event: MessageEvent) {
+    ///
+    /// Waits until all backends have started, so that none of them misses the event.
+    pub async fn send(&self, event: MessageEvent) {
+        if self.ready.clone().wait_for(|ready| *ready).await.is_err() {
+            warn!("group '{}' was never ready", self.name);
+            return;
+        }
         let message = BackendMessage {
             group_name: self.name.clone(),
             backend_name: self.backend_name.clone(),

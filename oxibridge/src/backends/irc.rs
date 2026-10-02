@@ -189,7 +189,7 @@ async fn receive(database: &Database, channels: &[Channel], message: &IrcMessage
                 continue;
             }
         };
-        group.send(MessageEvent::Create(message.clone()));
+        group.send(MessageEvent::Create(message.clone())).await;
     }
 }
 

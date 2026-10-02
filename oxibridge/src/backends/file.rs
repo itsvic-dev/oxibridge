@@ -1,11 +1,10 @@
-use std::{error::Error, path::PathBuf, time::Duration};
+use std::{error::Error, path::PathBuf};
 
 use log::{debug, warn};
 use serde::{Deserialize, Serialize};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt},
     task::JoinSet,
-    time::sleep,
 };
 
 use crate::{
@@ -115,8 +114,6 @@ impl super::Backend for FileBackend {
                 let chat = self.file_path.display().to_string();
 
                 tasks.spawn(async move {
-                    // wait for a second to let other backends start
-                    sleep(Duration::from_secs(1)).await;
                     let mut line_number = 0_u64;
                     while let Ok(Some(line)) = lines.next_line().await {
                         line_number = line_number.saturating_add(1);
@@ -146,7 +143,7 @@ impl super::Backend for FileBackend {
                                 continue;
                             }
                         };
-                        group.send(MessageEvent::Create(message));
+                        group.send(MessageEvent::Create(message)).await;
                     }
                 });
             }

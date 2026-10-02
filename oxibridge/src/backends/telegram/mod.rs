@@ -393,7 +393,7 @@ async fn receive_reactions(
         return Ok(());
     };
     for chat in targets {
-        chat.group.send(MessageEvent::Reactions(core.clone()));
+        chat.group.send(MessageEvent::Reactions(core.clone())).await;
     }
     Ok(())
 }
@@ -440,7 +440,8 @@ async fn receive_new(context: &Context, chats: &[Chat], message: &TgMessage) -> 
             .await?;
         context.database.add_link(id, &link).await?;
         chat.group
-            .send(MessageEvent::Create(Message { id, ..core.clone() }));
+            .send(MessageEvent::Create(Message { id, ..core.clone() }))
+            .await;
     }
     Ok(())
 }
@@ -463,7 +464,7 @@ async fn receive_edit(context: &Context, chats: &[Chat], message: &TgMessage) ->
         .await?
         .unwrap_or(Message { id, ..core });
     for chat in chats.iter().filter(|c| c.peer == message.peer_id()) {
-        chat.group.send(MessageEvent::Edit(stored.clone()));
+        chat.group.send(MessageEvent::Edit(stored.clone())).await;
     }
     Ok(())
 }
@@ -499,7 +500,7 @@ async fn receive_delete(
         for (id, chat) in found {
             context.database.remove_links(id, &context.name).await?;
             for target in chats.iter().filter(|c| chat_key(c.peer) == chat) {
-                target.group.send(MessageEvent::Delete(id));
+                target.group.send(MessageEvent::Delete(id)).await;
             }
         }
     }
