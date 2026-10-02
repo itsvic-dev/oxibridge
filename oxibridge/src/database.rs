@@ -5,7 +5,7 @@ use sqlx::{
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
 };
 
-use crate::core::{Message, PartialAuthor, Reaction, Source};
+use crate::core::{Author, Message, PartialAuthor, Reaction, Source};
 
 /// Identifies one platform message that a core message was bridged as.
 ///
@@ -350,6 +350,51 @@ impl Database {
         Ok(())
     }
 
+    /// Records that `author` has `user_id` on `backend`, so that others can mention them.
+    ///
+    /// # Errors
+    /// Returns an error if the query fails.
+    pub async fn remember_user(
+        &self,
+        backend: &str,
+        author: &Author,
+        user_id: &str,
+    ) -> sqlx::Result<()> {
+        let username = author.username.to_lowercase();
+        sqlx::query!(
+            "INSERT INTO users (backend, username, user_id, display_name) VALUES (?, ?, ?, ?)
+            ON CONFLICT (backend, username) DO UPDATE
+            SET user_id = excluded.user_id, display_name = excluded.display_name",
+            backend,
+            username,
+            user_id,
+            author.display_name
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Finds a user that [`Self::remember_user`] recorded, as `(user_id, display_name)`.
+    ///
+    /// # Errors
+    /// Returns an error if the query fails.
+    pub async fn find_user(
+        &self,
+        backend: &str,
+        username: &str,
+    ) -> sqlx::Result<Option<(String, Option<String>)>> {
+        let username = username.to_lowercase();
+        let row = sqlx::query!(
+            "SELECT user_id, display_name FROM users WHERE backend = ? AND username = ?",
+            backend,
+            username
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|row| (row.user_id, row.display_name)))
+    }
+
     /// Forgets the platform messages on `backend` for core message `message_id`.
     ///
     /// # Errors
@@ -416,6 +461,19 @@ mod tests {
         assert_eq!(loaded.in_reply_to, Some(first));
         assert_eq!(loaded.reply_author, Some(author()));
         assert_eq!(db.message_origin(second).await?, Some("irc".to_owned()));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn finds_users_by_username_in_any_case() -> sqlx::Result<()> {
+        let db = database().await?;
+        db.remember_user("dc", &message().author, "1").await?;
+        db.remember_user("dc", &message().author, "2").await?;
+        assert_eq!(
+            db.find_user("dc", "VIC").await?,
+            Some(("2".to_owned(), Some("Vic".to_owned())))
+        );
+        assert_eq!(db.find_user("tg", "vic").await?, None);
         Ok(())
     }
 

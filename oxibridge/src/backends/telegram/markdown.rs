@@ -2,7 +2,14 @@
 //!
 //! Telegram entity offsets and lengths count UTF-16 code units.
 
-use grammers_client::tl::{enums::MessageEntity, types};
+use std::collections::HashMap;
+
+use grammers_client::tl::{
+    enums::{InputUser, MessageEntity},
+    types,
+};
+
+use crate::core::Source;
 
 #[derive(Clone)]
 enum Kind {
@@ -15,6 +22,7 @@ enum Kind {
     Pre(String),
     Blockquote,
     TextUrl(String),
+    MentionName(InputUser),
 }
 
 impl Kind {
@@ -44,6 +52,12 @@ impl Kind {
                 url,
             }
             .into(),
+            Self::MentionName(user_id) => types::InputMessageEntityMentionName {
+                offset,
+                length,
+                user_id,
+            }
+            .into(),
         }
     }
 }
@@ -64,11 +78,23 @@ fn utf16_len(text: &str) -> i32 {
     i32::try_from(text.encode_utf16().count()).unwrap_or(i32::MAX)
 }
 
+/// A Telegram user that a bridged message can mention.
+#[derive(Clone, Debug)]
+pub struct Mention {
+    /// The text shown for the mention.
+    pub label: String,
+    pub user: InputUser,
+}
+
+/// Mentionable users by lowercase username.
+pub type Mentions = HashMap<String, Mention>;
+
 #[derive(Default)]
 struct Builder {
     text: String,
     length: i32,
     entities: Vec<MessageEntity>,
+    mentions: Mentions,
 }
 
 impl Builder {
@@ -94,8 +120,18 @@ impl Builder {
 
 /// Builds the Telegram text for a bridged message: `header` in bold on its own line, then `markdown`,
 /// then `footer` in italics on its own line.
-pub fn bridged(header: &str, markdown: &str, footer: Option<&str>) -> (String, Vec<MessageEntity>) {
-    let mut out = Builder::default();
+///
+/// Mentions like `@tg/name` of users in `mentions` become mentions of those users.
+pub fn bridged(
+    header: &str,
+    markdown: &str,
+    footer: Option<&str>,
+    mentions: &Mentions,
+) -> (String, Vec<MessageEntity>) {
+    let mut out = Builder {
+        mentions: mentions.clone(),
+        ..Builder::default()
+    };
     out.wrap(Kind::Bold, |out| out.push(header));
     out.push("\n");
     parse(markdown, &mut out, true);
@@ -175,6 +211,16 @@ fn block<'a>(rest: &'a str, out: &mut Builder) -> Option<&'a str> {
 }
 
 fn inline<'a>(rest: &'a str, previous: Option<char>, out: &mut Builder) -> Option<&'a str> {
+    if !previous.is_some_and(char::is_alphanumeric)
+        && let Some((length, name)) = Source::Telegram.mention_at(rest)
+        && let Some(mention) = out.mentions.get(&name.to_lowercase()).cloned()
+    {
+        out.wrap(Kind::MentionName(mention.user), |out| {
+            out.push(&mention.label)
+        });
+        return rest.get(length..);
+    }
+
     if let Some(after) = rest.strip_prefix('\\') {
         let escaped = after.chars().next().filter(char::is_ascii_punctuation)?;
         out.push(escaped.encode_utf8(&mut [0; 4]));
@@ -381,9 +427,12 @@ fn tag(entity: &MessageEntity) -> Option<Tag> {
 
 #[cfg(test)]
 mod tests {
-    use grammers_client::tl::{enums::MessageEntity, types};
+    use grammers_client::tl::{
+        enums::{InputUser, MessageEntity},
+        types,
+    };
 
-    use super::{Builder, bridged, parse, to_markdown};
+    use super::{Builder, Mention, Mentions, bridged, parse, to_markdown};
 
     fn parsed(markdown: &str) -> (String, Vec<MessageEntity>) {
         let mut out = Builder::default();
@@ -544,15 +593,41 @@ mod tests {
     #[test]
     fn puts_the_header_in_bold_before_the_content() {
         assert_eq!(
-            bridged("Vic", "*hi*", None),
+            bridged("Vic", "*hi*", None, &Mentions::new()),
             ("Vic\nhi".to_owned(), vec![bold(0, 3), italic(4, 2)])
+        );
+    }
+
+    #[test]
+    fn mentions_known_users_only() {
+        let user = InputUser::User(types::InputUser {
+            user_id: 5,
+            access_hash: 7,
+        });
+        let mention = Mention {
+            label: "@some_user".to_owned(),
+            user: user.clone(),
+        };
+        let mentions = Mentions::from([("some_user".to_owned(), mention)]);
+        let expected_mention: MessageEntity = types::InputMessageEntityMentionName {
+            offset: 7,
+            length: 10,
+            user_id: user,
+        }
+        .into();
+        assert_eq!(
+            bridged("Vic", "hi @tg/Some_User, @tg/other_one", None, &mentions),
+            (
+                "Vic\nhi @some_user, @tg/other_one".to_owned(),
+                vec![bold(0, 3), expected_mention]
+            )
         );
     }
 
     #[test]
     fn puts_the_footer_in_italics_without_parsing_it() {
         assert_eq!(
-            bridged("Vic", "hi", Some(":a_b_c: 1")),
+            bridged("Vic", "hi", Some(":a_b_c: 1"), &Mentions::new()),
             (
                 "Vic\nhi\n:a_b_c: 1".to_owned(),
                 vec![bold(0, 3), italic(7, 9)]
@@ -563,7 +638,7 @@ mod tests {
     #[test]
     fn measures_the_header_in_utf16_units() {
         assert_eq!(
-            bridged("🦀", "*hi*", None),
+            bridged("🦀", "*hi*", None, &Mentions::new()),
             ("🦀\nhi".to_owned(), vec![bold(0, 2), italic(3, 2)])
         );
     }

@@ -28,6 +28,38 @@ impl Source {
             .into_iter()
             .find(|source| source.tag() == tag)
     }
+
+    /// Reads a mention like `@dc/name` at the start of `text`, and returns its length in bytes and the name.
+    pub fn mention_at(self, text: &str) -> Option<(usize, &str)> {
+        let rest = text
+            .strip_prefix('@')?
+            .strip_prefix(self.tag())?
+            .strip_prefix('/')?;
+        let end = rest
+            .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '.'))
+            .unwrap_or(rest.len());
+        // a mention at the end of a sentence keeps its full stop out
+        let name = rest.get(..end)?.trim_end_matches('.');
+        (!name.is_empty()).then(|| (text.len() - rest.len() + name.len(), name))
+    }
+
+    /// Finds all mentions like `@dc/name` in `text`, as byte ranges with the name.
+    pub fn mentions(self, text: &str) -> Vec<(std::ops::Range<usize>, &str)> {
+        let mut found = vec![];
+        let mut previous: Option<char> = None;
+        for (index, c) in text.char_indices() {
+            let after_word = previous.is_some_and(char::is_alphanumeric);
+            if c == '@'
+                && !after_word
+                && let Some((length, name)) =
+                    text.get(index..).and_then(|rest| self.mention_at(rest))
+            {
+                found.push((index..index + length, name));
+            }
+            previous = Some(c);
+        }
+        found
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -274,6 +306,23 @@ mod tests {
     fn leaves_out_reactions_from_the_target_backend() {
         let message = with_reactions(&[("tg", "❤️", 1)]);
         assert_eq!(message.reaction_summary("tg"), None);
+    }
+
+    #[test]
+    fn finds_mentions_of_one_platform() {
+        let text = "hi @dc/vic and @tg/bob, ask @dc/a.b.";
+        let found = Source::Discord.mentions(text);
+        let names: Vec<_> = found.iter().map(|(_, name)| *name).collect();
+        assert_eq!(names, vec!["vic", "a.b"]);
+        assert_eq!(
+            found.first().and_then(|(range, _)| text.get(range.clone())),
+            Some("@dc/vic")
+        );
+    }
+
+    #[test]
+    fn ignores_mentions_inside_words() {
+        assert!(Source::Discord.mentions("mail@dc/vic @dc/").is_empty());
     }
 
     #[test]

@@ -26,6 +26,7 @@ mod markdown;
 mod media;
 mod session;
 
+use markdown::{Mention, Mentions};
 use session::StoredSession;
 
 type TaskResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
@@ -240,7 +241,8 @@ async fn deliver(context: &Context, peer: PeerId, event: &MessageEvent) -> TaskR
                 Some(reply) => platform_ids(context, reply, peer).await?.first().copied(),
                 None => None,
             };
-            for id in media::send(&context.client, target, message, reply_to).await? {
+            let mentions = mentions(context, &message.content).await?;
+            for id in media::send(&context.client, target, message, reply_to, &mentions).await? {
                 context
                     .database
                     .add_link(message.id, &link(context, peer, id))
@@ -260,9 +262,10 @@ async fn deliver(context: &Context, peer: PeerId, event: &MessageEvent) -> TaskR
             }
             // only the first message of a bridged message carries its text
             if let Some(&id) = platform_ids(context, message.id, peer).await?.first() {
+                let mentions = mentions(context, &message.content).await?;
                 context
                     .client
-                    .edit_message(target, id, render(context, message))
+                    .edit_message(target, id, render(context, message, &mentions))
                     .await?;
             }
         }
@@ -281,13 +284,45 @@ async fn deliver(context: &Context, peer: PeerId, event: &MessageEvent) -> TaskR
     Ok(())
 }
 
-fn render(context: &Context, message: &Message) -> InputMessage {
+fn render(context: &Context, message: &Message, mentions: &Mentions) -> InputMessage {
     let (text, entities) = markdown::bridged(
         &message.author.full_name(Some(0)),
         &message.content,
         message.reaction_summary(&context.name).as_deref(),
+        mentions,
     );
     InputMessage::new().text(text).fmt_entities(entities)
+}
+
+/// Looks up the users that `content` mentions like `@tg/name`, if this backend has seen them.
+async fn mentions(context: &Context, content: &str) -> sqlx::Result<Mentions> {
+    let mut mentions = Mentions::new();
+    for (_, name) in Source::Telegram.mentions(content) {
+        let Some((id, display_name)) = context.database.find_user(&context.name, name).await?
+        else {
+            continue;
+        };
+        let Some(peer) = id.parse().ok().and_then(PeerId::user) else {
+            continue;
+        };
+        // a mention without the user's access hash makes Telegram reject the whole message
+        let Some(user) = context.session.peer_ref(peer).await.ok().flatten() else {
+            continue;
+        };
+        let label = if name.parse::<i64>().is_ok() {
+            display_name.unwrap_or_else(|| name.to_owned())
+        } else {
+            format!("@{name}")
+        };
+        mentions.insert(
+            name.to_lowercase(),
+            Mention {
+                label,
+                user: user.into(),
+            },
+        );
+    }
+    Ok(mentions)
 }
 
 async fn receive(context: &Context, chats: &[Chat], update: Update) -> TaskResult {
@@ -387,6 +422,13 @@ async fn receive_new(context: &Context, chats: &[Chat], message: &TgMessage) -> 
     let core = to_core(context, message, true).await?;
     if core.content.is_empty() && core.attachments.is_empty() {
         return Ok(());
+    }
+    if let Some(Peer::User(user)) = message.sender() {
+        let id = user.id().bare_id_unchecked().to_string();
+        context
+            .database
+            .remember_user(&context.name, &core.author, &id)
+            .await?;
     }
     for chat in targets {
         let group = &chat.group;

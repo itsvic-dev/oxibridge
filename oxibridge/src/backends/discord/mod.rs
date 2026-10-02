@@ -296,36 +296,59 @@ async fn avatar_url(context: &Context, author: &Author) -> Option<String> {
     }
 }
 
-/// Returns the bridged text with its reply header, and the one user it may mention.
+/// Returns the bridged text with its reply header, and the users it may mention.
 async fn text_for(
     context: &Context,
     http: &Http,
     channel: ChannelId,
     message: &Message,
 ) -> TaskResult<(String, Vec<UserId>)> {
+    let (content, mut mentioned) = resolve_mentions(context, &message.content).await?;
     let replied = match message.in_reply_to {
         Some(reply) => message_ids(context, reply, channel).await?.first().copied(),
         None => None,
     };
     let Some(replied) = replied else {
-        return Ok((message.content.clone(), vec![]));
+        return Ok((content, mentioned));
     };
 
     let original = channel.message(http, replied).await?;
-    let (who, mentioned) = match &message.reply_author {
-        Some(author) if author.source == Source::Discord => (
-            format!("<@{}>", original.author.id),
-            vec![original.author.id],
-        ),
-        Some(author) => (format!("**{}**", author.full_name(Some(0))), vec![]),
-        None => ("a message".to_owned(), vec![]),
+    let who = match &message.reply_author {
+        Some(author) if author.source == Source::Discord => {
+            mentioned.push(original.author.id);
+            format!("<@{}>", original.author.id)
+        }
+        Some(author) => format!("**{}**", author.full_name(Some(0))),
+        None => "a message".to_owned(),
     };
     let guild = original
         .guild_id
         .map_or_else(|| "@me".to_owned(), |guild| guild.to_string());
     let header =
         format!("-# Replying to {who}: https://discord.com/channels/{guild}/{channel}/{replied}\n");
-    Ok((header + &message.content, mentioned))
+    Ok((header + &content, mentioned))
+}
+
+/// Replaces `@dc/name` with a mention of that user, if this backend has seen them.
+async fn resolve_mentions(context: &Context, content: &str) -> sqlx::Result<(String, Vec<UserId>)> {
+    let mut text = String::new();
+    let mut mentioned = vec![];
+    let mut copied = 0;
+    for (range, name) in Source::Discord.mentions(content) {
+        let user = context.database.find_user(&context.name, name).await?;
+        let Some(id) = user
+            .and_then(|(id, _)| id.parse::<u64>().ok())
+            .filter(|&id| id != 0)
+        else {
+            continue;
+        };
+        text.push_str(content.get(copied..range.start).unwrap_or_default());
+        text.push_str(&format!("<@{id}>"));
+        mentioned.push(UserId::new(id));
+        copied = range.end;
+    }
+    text.push_str(content.get(copied..).unwrap_or_default());
+    Ok((text, mentioned))
 }
 
 /// Reads the attachments to upload, and notes the ones over Discord's size limit.
@@ -377,6 +400,14 @@ impl Handler {
             return Ok(());
         }
         let link = link(&self.context, message.channel_id, message.id);
+        self.context
+            .database
+            .remember_user(
+                &self.context.name,
+                &core.author,
+                &message.author.id.to_string(),
+            )
+            .await?;
         for chat in self.chats_in(message.channel_id) {
             let group = &chat.group;
             let id = self

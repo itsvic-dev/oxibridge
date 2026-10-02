@@ -11,6 +11,8 @@ use grammers_client::{
 };
 use tokio::sync::Mutex;
 
+use super::markdown::Mentions;
+
 use crate::core::{Attachment, Message};
 
 // larger files are mentioned instead of bridged, as no other platform takes them anyway
@@ -154,9 +156,14 @@ pub async fn send(
     target: PeerRef,
     message: &Message,
     reply_to: Option<i32>,
+    mentions: &Mentions,
 ) -> MediaResult<Vec<i32>> {
-    let (text, entities) =
-        super::markdown::bridged(&message.author.full_name(Some(0)), &message.content, None);
+    let (text, entities) = super::markdown::bridged(
+        &message.author.full_name(Some(0)),
+        &message.content,
+        None,
+        mentions,
+    );
     let attachments = message.attachments.as_slice();
     let caption_fits = text.encode_utf16().count() <= MAX_CAPTION_LENGTH;
     let album = attachments.len() > 1 && attachments.iter().all(is_photo);
