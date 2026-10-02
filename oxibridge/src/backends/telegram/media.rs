@@ -471,6 +471,10 @@ fn venue_text(venue: &grammers_client::media::Venue) -> String {
     if let Some(geo) = &venue.geo {
         text.push('\n');
         text.push_str(&location_url(geo.latitue(), geo.longitude()));
+        if venue.raw_venue.provider == "gplaces" && !venue.raw_venue.venue_id.is_empty() {
+            text.push_str("&query_place_id=");
+            text.push_str(&venue.raw_venue.venue_id);
+        }
     }
     text
 }
