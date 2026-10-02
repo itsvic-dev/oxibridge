@@ -6,7 +6,8 @@ const MAX_USERNAME_LENGTH: usize = 80;
 
 /// Replaces Discord's mention, channel, role and custom emoji tags with readable text.
 ///
-/// `users` maps user IDs to the names to show, taken from the message's mentions.
+/// `users` maps user IDs to usernames, taken from the message's mentions.
+/// User mentions become `@dc/username`, which other platforms can send back as a mention.
 pub fn to_core(content: &str, users: &[(u64, String)]) -> String {
     let mut result = String::with_capacity(content.len());
     let mut rest = content;
@@ -42,11 +43,10 @@ fn readable_tag(inner: &str, users: &[(u64, String)]) -> Option<String> {
     if let Some(id) = inner.strip_prefix('@') {
         let id = id.strip_prefix('!').unwrap_or(id);
         let id: u64 = id.parse().ok()?;
-        let name = users
-            .iter()
-            .find(|(user, _)| *user == id)
-            .map_or("unknown user", |(_, name)| name.as_str());
-        return Some(format!("@{name}"));
+        return Some(users.iter().find(|(user, _)| *user == id).map_or_else(
+            || "@unknown user".to_owned(),
+            |(_, name)| format!("@dc/{name}"),
+        ));
     }
     if let Some(id) = inner.strip_prefix('#') {
         return is_id(id).then(|| "#channel".to_owned());
@@ -110,7 +110,10 @@ mod tests {
     #[test]
     fn names_mentioned_users() {
         let users = vec![(1, "vic".to_owned())];
-        assert_eq!(to_core("hi <@1> and <@!1>", &users), "hi @vic and @vic");
+        assert_eq!(
+            to_core("hi <@1> and <@!1>", &users),
+            "hi @dc/vic and @dc/vic"
+        );
     }
 
     #[test]

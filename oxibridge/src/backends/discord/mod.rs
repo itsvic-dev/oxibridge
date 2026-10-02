@@ -599,13 +599,7 @@ fn emoji_name(reaction: &ReactionType) -> String {
 fn mention_names(users: &[User]) -> Vec<(u64, String)> {
     users
         .iter()
-        .map(|user| {
-            let name = user
-                .global_name
-                .clone()
-                .unwrap_or_else(|| user.name.clone());
-            (user.id.get(), name)
-        })
+        .map(|user| (user.id.get(), user.name.clone()))
         .collect()
 }
 
