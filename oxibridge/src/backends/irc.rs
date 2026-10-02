@@ -161,6 +161,7 @@ async fn receive(database: &Database, channels: &[Channel], message: &IrcMessage
     let author = Author {
         display_name: Some(nickname.to_owned()),
         username: nickname.to_owned(),
+        avatar: None,
         source: Source::Irc,
     };
 
@@ -300,6 +301,7 @@ mod tests {
             author: Author {
                 display_name: Some("Vic".to_owned()),
                 username: "vic".to_owned(),
+                avatar: None,
                 source: Source::File,
             },
             content: content.to_owned(),

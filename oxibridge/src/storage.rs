@@ -7,25 +7,30 @@ use async_tempfile::TempFile;
 use color_eyre::Result;
 use log::debug;
 use s3::{Bucket, Region, creds::Credentials};
-use tokio::io::AsyncReadExt;
+use tokio::{io::AsyncReadExt, sync::Mutex};
 
 use crate::config::R2Config;
 
+/// Uploads files to an R2 bucket, so that other services can fetch them by URL.
 #[derive(Debug)]
 pub struct R2Storage {
     bucket: Box<Bucket>,
-    cache: HashMap<String, CacheItem>,
+    cache: Mutex<HashMap<String, CacheItem>>,
 }
 
 #[derive(Debug)]
 struct CacheItem {
-    pub url: String,
-    pub expiry_time: SystemTime,
+    url: String,
+    expiry_time: SystemTime,
 }
 
 const DAY: u32 = 24 * 60 * 60;
+// leaves time for the service to fetch the URL before it expires
+const EXPIRY_MARGIN: Duration = Duration::from_secs(60);
 
 impl R2Storage {
+    /// # Errors
+    /// Returns an error if the credentials are not valid.
     pub fn new(config: &R2Config) -> Result<Self> {
         let bucket = Bucket::new(
             &config.bucket_name,
@@ -42,46 +47,42 @@ impl R2Storage {
         )?
         .with_path_style();
 
-        Ok(R2Storage {
+        Ok(Self {
             bucket,
-            cache: HashMap::new(),
+            cache: Mutex::new(HashMap::new()),
         })
     }
 
-    /// Gets a URL to this file in R2-backed storage.
+    /// Uploads `file` and returns a presigned GET URL to it, valid for 1 day.
     ///
-    /// The URL is a presigned GET URL which will expire after 1 day.
-    pub async fn get_url(&mut self, file: &TempFile) -> Result<String> {
-        // read file
+    /// Files are stored by the hash of their content, so each file is uploaded once per day at most.
+    ///
+    /// # Errors
+    /// Returns an error if the file cannot be read or uploaded.
+    pub async fn url(&self, file: &TempFile, content_type: &str) -> Result<String> {
         let mut content = Vec::new();
-        // Ensure `file` is declared as mutable
-        let mut file = file.open_ro().await?;
-
-        file.read_to_end(&mut content).await?;
-
+        file.open_ro().await?.read_to_end(&mut content).await?;
         let hash = sha256::digest(&content);
 
-        // check if file is in cache. subtracting 10s from expiry time to account for possible latency between the cache hit and Discord pulling it
-        if let Some(cache_item) = self.cache.get(&hash) {
-            if cache_item.expiry_time - Duration::from_secs(10) >= SystemTime::now() {
-                debug!("cache hit for file {file:?}");
-                return Ok(cache_item.url.clone());
-            }
+        let mut cache = self.cache.lock().await;
+        if let Some(item) = cache.get(&hash)
+            && item.expiry_time > SystemTime::now() + EXPIRY_MARGIN
+        {
+            return Ok(item.url.clone());
         }
 
-        // upload the file to S3 and get new presigned URL
-        self.bucket.put_object(&hash, &content).await?;
+        self.bucket
+            .put_object_with_content_type(&hash, &content, content_type)
+            .await?;
         let url = self.bucket.presign_get(&hash, DAY, None).await?;
-        self.cache.insert(
-            hash,
+        cache.insert(
+            hash.clone(),
             CacheItem {
                 url: url.clone(),
                 expiry_time: SystemTime::now() + Duration::from_secs(DAY.into()),
             },
         );
-
-        debug!("uploaded file {file:?}");
-
+        debug!("uploaded {hash} to R2");
         Ok(url)
     }
 }

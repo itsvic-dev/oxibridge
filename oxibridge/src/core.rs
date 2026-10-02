@@ -34,8 +34,16 @@ impl Source {
 pub struct Author {
     pub display_name: Option<String>,
     pub username: String,
-    // pub avatar: Option<TempFile>,
+    pub avatar: Option<Avatar>,
     pub source: Source,
+}
+
+#[derive(Debug, Clone)]
+pub enum Avatar {
+    /// A public URL that other services can fetch.
+    Url(String),
+    /// A JPEG file that has to be uploaded somewhere first.
+    File(Arc<TempFile>),
 }
 
 impl Author {
@@ -107,8 +115,8 @@ impl From<PartialAuthor> for Author {
         Self {
             display_name: value.display_name,
             username: value.username,
+            avatar: None,
             source: value.source,
-            // avatar: None,
         }
     }
 }
@@ -155,6 +163,7 @@ mod tests {
         Author {
             display_name: display_name.map(str::to_owned),
             username: "nick".to_owned(),
+            avatar: None,
             source: Source::Irc,
         }
     }

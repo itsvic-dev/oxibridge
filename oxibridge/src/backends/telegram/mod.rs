@@ -462,6 +462,7 @@ fn author_of(message: &TgMessage) -> Author {
     Author {
         display_name,
         username,
+        avatar: None,
         source: Source::Telegram,
     }
 }

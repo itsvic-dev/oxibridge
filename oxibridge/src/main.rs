@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, sync::Arc};
 
 use log::{debug, error, info};
 use tokio::task::JoinSet;
@@ -34,6 +34,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .collect();
 
     let database = Database::open(&config.global.database).await?;
+    let storage = config
+        .global
+        .r2
+        .as_ref()
+        .map(storage::R2Storage::new)
+        .transpose()?
+        .map(Arc::new);
 
     let backends = config
         .backends
@@ -52,7 +59,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
             Ok((
                 name,
-                backends::get_backend(name, backend, &backend_groups, &database)?,
+                backends::get_backend(name, backend, &backend_groups, &database, storage.as_ref())?,
             ))
         })
         .collect::<Result<Vec<_>, _>>()?;

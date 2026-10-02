@@ -16,8 +16,9 @@ use tokio::{io::AsyncWriteExt, task::JoinSet};
 
 use crate::{
     backends::{BackendGroup, MessageEvent},
-    core::{Attachment, Author, Message, Source},
+    core::{Attachment, Author, Avatar, Message, Source},
     database::{Database, Link},
+    storage::R2Storage,
 };
 
 mod content;
@@ -51,6 +52,7 @@ struct Chat {
 struct Context {
     name: String,
     database: Database,
+    storage: Option<Arc<R2Storage>>,
 }
 
 pub struct DiscordBackend {
@@ -58,6 +60,7 @@ pub struct DiscordBackend {
     token: String,
     chats: Vec<Chat>,
     database: Database,
+    storage: Option<Arc<R2Storage>>,
 }
 
 impl DiscordBackend {
@@ -66,6 +69,7 @@ impl DiscordBackend {
         config: &Config,
         group_configs: &[BackendGroup],
         database: Database,
+        storage: Option<Arc<R2Storage>>,
     ) -> Result<Self, Box<dyn Error>> {
         let chats = group_configs
             .iter()
@@ -86,6 +90,7 @@ impl DiscordBackend {
             token: config.token.clone(),
             chats,
             database,
+            storage,
         })
     }
 }
@@ -96,6 +101,7 @@ impl super::Backend for DiscordBackend {
         let context = Context {
             name: self.name.clone(),
             database: self.database.clone(),
+            storage: self.storage.clone(),
         };
         let handler = Handler {
             context: context.clone(),
@@ -200,20 +206,24 @@ async fn deliver(
             let mut pieces = content::split(&text).into_iter();
             let username = content::webhook_username(&message.author.full_name(None));
             let allowed_mentions = CreateAllowedMentions::new().users(mentioned);
+            let avatar = avatar_url(context, &message.author).await;
+            let base = || {
+                let builder = ExecuteWebhook::new()
+                    .username(&username)
+                    .allowed_mentions(allowed_mentions.clone());
+                match &avatar {
+                    Some(url) => builder.avatar_url(url),
+                    None => builder,
+                }
+            };
 
-            let mut builder = ExecuteWebhook::new()
-                .username(&username)
-                .allowed_mentions(allowed_mentions.clone())
-                .add_files(files);
+            let mut builder = base().add_files(files);
             if let Some(first) = pieces.next() {
                 builder = builder.content(first);
             }
             let mut sent = vec![webhook.execute(http, true, builder).await?];
             for piece in pieces {
-                let builder = ExecuteWebhook::new()
-                    .username(&username)
-                    .allowed_mentions(allowed_mentions.clone())
-                    .content(piece);
+                let builder = base().content(piece);
                 sent.push(webhook.execute(http, true, builder).await?);
             }
             for sent in sent.into_iter().flatten() {
@@ -247,6 +257,24 @@ async fn deliver(
         }
     }
     Ok(())
+}
+
+/// Returns a URL to the avatar of `author`. Avatar files need R2 storage to get one.
+async fn avatar_url(context: &Context, author: &Author) -> Option<String> {
+    match (&author.avatar, &context.storage) {
+        (Some(Avatar::Url(url)), _) => Some(url.clone()),
+        (Some(Avatar::File(file)), Some(storage)) => match storage.url(file, "image/jpeg").await {
+            Ok(url) => Some(url),
+            Err(e) => {
+                warn!(
+                    "DiscordBackend '{}' failed to upload an avatar: {e}",
+                    context.name
+                );
+                None
+            }
+        },
+        _ => None,
+    }
 }
 
 /// Returns the bridged text with its reply header, and the one user it may mention.
@@ -453,6 +481,7 @@ fn author_of(user: &User, nickname: Option<&str>) -> Author {
             .map(str::to_owned)
             .or_else(|| user.global_name.clone()),
         username: user.name.clone(),
+        avatar: Some(Avatar::Url(user.face())),
         source: Source::Discord,
     }
 }

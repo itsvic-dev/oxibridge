@@ -122,6 +122,7 @@ impl super::Backend for FileBackend {
                         let author = Author {
                             display_name: None,
                             username: "file_backend".to_owned(),
+                            avatar: None,
                             source: Source::File,
                         };
                         let id = match record(&database, &group.name, &author, &link).await {

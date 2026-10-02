@@ -1,8 +1,9 @@
-use std::error::Error;
+use std::{error::Error, sync::Arc};
 
 use crate::{
     config::{BackendConfig, GroupBackendConfig},
     database::Database,
+    storage::R2Storage,
 };
 use log::{debug, warn};
 use tokio::{
@@ -24,6 +25,7 @@ pub fn get_backend(
     backend_config: &BackendConfig,
     group_configs: &[BackendGroup],
     database: &Database,
+    storage: Option<&Arc<R2Storage>>,
 ) -> Result<Box<dyn self::Backend>, Box<dyn Error>> {
     debug!("Loading backend '{name}'");
     Ok(match backend_config {
@@ -50,6 +52,7 @@ pub fn get_backend(
             config,
             group_configs,
             database.clone(),
+            storage.cloned(),
         )?),
     })
 }
