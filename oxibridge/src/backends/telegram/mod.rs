@@ -1,4 +1,4 @@
-use std::{error::Error, sync::Arc};
+use std::{collections::HashMap, error::Error, sync::Arc, time::Duration};
 
 use grammers_client::{
     Client, SenderPool,
@@ -14,7 +14,7 @@ use grammers_client::{
 };
 use log::{debug, warn};
 use serde::{Deserialize, Serialize};
-use tokio::task::JoinSet;
+use tokio::{sync::Mutex, task::JoinSet};
 
 use crate::{
     backends::{BackendGroup, MessageEvent},
@@ -30,6 +30,9 @@ use markdown::{Mention, Mentions};
 use session::StoredSession;
 
 type TaskResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
+
+// how long to wait for the next item of an album after the last one
+const ALBUM_WAIT: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
@@ -62,6 +65,8 @@ struct Context {
     database: Database,
     avatars: media::Avatars,
     sticker_sets: media::StickerSets,
+    /// Album items waiting to be bridged, by grouped ID, with a counter that changes with each item.
+    albums: Arc<Mutex<HashMap<i64, (u64, Vec<TgMessage>)>>>,
 }
 
 pub struct TelegramBackend {
@@ -137,6 +142,7 @@ impl super::Backend for TelegramBackend {
             database: self.database.clone(),
             avatars: media::Avatars::default(),
             sticker_sets: media::StickerSets::default(),
+            albums: Arc::default(),
         };
 
         for chat in self.chats.iter().filter(|c| !c.group.config.readonly) {
@@ -330,7 +336,14 @@ async fn mentions(context: &Context, content: &str) -> sqlx::Result<Mentions> {
 async fn receive(context: &Context, chats: &[Chat], update: Update) -> TaskResult {
     match update {
         Update::NewMessage(message) if !message.outgoing() => {
-            receive_new(context, chats, &message).await
+            let message = message.into_inner();
+            match message.grouped_id() {
+                Some(album) => {
+                    collect_album(context, chats, message, album).await;
+                    Ok(())
+                }
+                None => receive_new(context, chats, std::slice::from_ref(&message)).await,
+            }
         }
         Update::MessageEdited(message) if !message.outgoing() => {
             receive_edit(context, chats, &message).await
@@ -407,7 +420,44 @@ fn emoji_name(reaction: &tl::enums::Reaction) -> Option<String> {
     }
 }
 
-async fn receive_new(context: &Context, chats: &[Chat], message: &TgMessage) -> TaskResult {
+/// Telegram sends each item of an album as its own message, so items are held until no more arrive.
+async fn collect_album(context: &Context, chats: &[Chat], message: TgMessage, album: i64) {
+    let generation = {
+        let mut albums = context.albums.lock().await;
+        let (generation, items) = albums.entry(album).or_default();
+        *generation = generation.wrapping_add(1);
+        items.push(message);
+        *generation
+    };
+    let context = context.clone();
+    let chats = chats.to_vec();
+    tokio::spawn(async move {
+        tokio::time::sleep(ALBUM_WAIT).await;
+        let items = {
+            let mut albums = context.albums.lock().await;
+            match albums.get(&album) {
+                Some((latest, _)) if *latest == generation => albums.remove(&album),
+                _ => None,
+            }
+        };
+        let Some((_, mut items)) = items else {
+            return;
+        };
+        items.sort_by_key(TgMessage::id);
+        if let Err(e) = receive_new(&context, &chats, &items).await {
+            warn!(
+                "TelegramBackend '{}' failed to bridge an album: {e}",
+                context.name
+            );
+        }
+    });
+}
+
+/// Bridges `messages`, which are one message or the items of one album, as one core message.
+async fn receive_new(context: &Context, chats: &[Chat], messages: &[TgMessage]) -> TaskResult {
+    let Some(message) = messages.first() else {
+        return Ok(());
+    };
     let targets: Vec<_> = chats
         .iter()
         .filter(|c| c.peer == message.peer_id())
@@ -415,13 +465,31 @@ async fn receive_new(context: &Context, chats: &[Chat], message: &TgMessage) -> 
     if targets.is_empty() {
         return Ok(());
     }
-    let link = link(context, message.peer_id(), message.id());
+    let links: Vec<_> = messages
+        .iter()
+        .map(|item| link(context, item.peer_id(), item.id()))
+        .collect();
     // catching up after a restart can replay messages that were already bridged
-    if context.database.find_message(&link).await?.is_some() {
+    if let Some(first) = links.first()
+        && context.database.find_message(first).await?.is_some()
+    {
         return Ok(());
     }
 
-    let core = to_core(context, message, true).await?;
+    let mut core = to_core(context, message, true).await?;
+    let mut parts = vec![std::mem::take(&mut core.content)];
+    for item in messages.get(1..).unwrap_or_default() {
+        let item = to_core(context, item, true).await?;
+        core.attachments.extend(item.attachments);
+        core.in_reply_to = core.in_reply_to.or(item.in_reply_to);
+        core.reply_author = core.reply_author.or(item.reply_author);
+        // labels like the forward header repeat on every item
+        if !parts.contains(&item.content) {
+            parts.push(item.content);
+        }
+    }
+    parts.retain(|part| !part.is_empty());
+    core.content = parts.join("\n");
     if core.content.is_empty() && core.attachments.is_empty() {
         return Ok(());
     }
@@ -438,7 +506,9 @@ async fn receive_new(context: &Context, chats: &[Chat], message: &TgMessage) -> 
             .database
             .create_message(&group.name, &group.backend_name, &core)
             .await?;
-        context.database.add_link(id, &link).await?;
+        for link in &links {
+            context.database.add_link(id, link).await?;
+        }
         chat.group
             .send(MessageEvent::Create(Message { id, ..core.clone() }))
             .await;
