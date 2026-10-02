@@ -3,7 +3,7 @@ use std::{collections::HashMap, error::Error, sync::Arc};
 use async_tempfile::TempFile;
 use grammers_client::{
     Client,
-    media::{Document, InputMedia, Media, Uploaded},
+    media::{Document, InputMedia, Media, Sticker, Uploaded},
     message::{InputMessage, Message as TgMessage},
     peer::Peer,
     session::types::PeerRef,
@@ -50,6 +50,44 @@ impl Avatars {
     }
 }
 
+/// Titles and short names of sticker sets, cached by set.
+#[derive(Clone, Default)]
+pub struct StickerSets(Arc<Mutex<HashMap<String, (String, String)>>>);
+
+impl StickerSets {
+    /// Returns a link to the set of `sticker`, titled with the set's name.
+    async fn link(&self, client: &Client, sticker: &Sticker) -> Option<String> {
+        let set = &sticker.raw_attrs.stickerset;
+        let key = match set {
+            tl::enums::InputStickerSet::Id(set) => set.id.to_string(),
+            tl::enums::InputStickerSet::ShortName(set) => set.short_name.clone(),
+            _ => return None,
+        };
+        let cached = self.0.lock().await.get(&key).cloned();
+        let (title, short_name) = match cached {
+            Some(found) => found,
+            None => {
+                let request = tl::functions::messages::GetStickerSet {
+                    stickerset: set.clone(),
+                    hash: 0,
+                };
+                let tl::enums::messages::StickerSet::Set(result) =
+                    client.invoke(&request).await.ok()?
+                else {
+                    return None;
+                };
+                let tl::enums::StickerSet::Set(info) = result.set;
+                let found = (info.title, info.short_name);
+                self.0.lock().await.insert(key, found.clone());
+                found
+            }
+        };
+        Some(format!(
+            "[{title}](<https://t.me/addstickers/{short_name}>)"
+        ))
+    }
+}
+
 /// What a message's media turns into on the core side.
 #[derive(Default)]
 pub struct Incoming {
@@ -61,6 +99,7 @@ pub struct Incoming {
 /// Converts the media and service action of `message`. Files are only downloaded if `download` is set.
 pub async fn incoming(
     client: &Client,
+    sticker_sets: &StickerSets,
     message: &TgMessage,
     author_name: &str,
     download: bool,
@@ -81,13 +120,24 @@ pub async fn incoming(
         Media::Document(document) if document.raw.voice => Some("*Voice message*".to_owned()),
         Media::Document(document) if document.raw.round => Some("*Video message*".to_owned()),
         Media::Document(_) => None,
-        Media::Sticker(sticker) if sticker.is_animated() => {
-            return Ok(Incoming {
-                label: Some(format!("*{} animated sticker*", sticker.emoji())),
-                attachments: vec![],
-            });
+        Media::Sticker(sticker) => {
+            let kind = if sticker.is_animated() {
+                "animated sticker"
+            } else {
+                "sticker"
+            };
+            let label = match sticker_sets.link(client, sticker).await {
+                Some(set) => format!("*{} {kind} from {set}*", sticker.emoji()),
+                None => format!("*{} {kind}*", sticker.emoji()),
+            };
+            if sticker.is_animated() {
+                return Ok(Incoming {
+                    label: Some(label),
+                    attachments: vec![],
+                });
+            }
+            Some(label)
         }
-        Media::Sticker(sticker) => Some(format!("*{} sticker*", sticker.emoji())),
         Media::Contact(contact) => Some(format!(
             "*Shared a contact*\n{} {}\n{}",
             contact.first_name(),

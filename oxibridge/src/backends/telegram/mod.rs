@@ -61,6 +61,7 @@ struct Context {
     session: Arc<StoredSession>,
     database: Database,
     avatars: media::Avatars,
+    sticker_sets: media::StickerSets,
 }
 
 pub struct TelegramBackend {
@@ -135,6 +136,7 @@ impl super::Backend for TelegramBackend {
             session,
             database: self.database.clone(),
             avatars: media::Avatars::default(),
+            sticker_sets: media::StickerSets::default(),
         };
 
         for chat in self.chats.iter().filter(|c| !c.group.config.readonly) {
@@ -521,6 +523,7 @@ async fn to_core(context: &Context, message: &TgMessage, download: bool) -> Task
     }
     let media = media::incoming(
         &context.client,
+        &context.sticker_sets,
         message,
         &author.full_name(Some(0)),
         download,
