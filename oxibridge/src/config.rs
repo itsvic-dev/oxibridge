@@ -68,8 +68,6 @@ fn merge(base: &mut Value, other: Value) {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GlobalSection {
     pub r2: Option<R2Config>,
-    #[serde(default)]
-    pub cache: CacheConfig,
     /// Path of the SQLite database. Created if it does not exist.
     #[serde(default = "default_database")]
     pub database: PathBuf,
@@ -79,7 +77,6 @@ impl Default for GlobalSection {
     fn default() -> Self {
         Self {
             r2: None,
-            cache: CacheConfig::default(),
             database: default_database(),
         }
     }
@@ -95,24 +92,6 @@ pub struct R2Config {
     pub account_id: String,
     pub access_key: String,
     pub secret_key: String,
-}
-
-#[derive(Default, Debug, Serialize, Deserialize)]
-pub struct CacheConfig {
-    #[serde(default)]
-    pub kind: CacheKind, // one of "memory". defaults to "memory"
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CacheKind {
-    Memory,
-}
-
-impl Default for CacheKind {
-    fn default() -> Self {
-        Self::Memory
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
