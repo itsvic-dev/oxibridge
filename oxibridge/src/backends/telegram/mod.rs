@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use tokio::{sync::Mutex, task::JoinSet};
 
 use crate::{
-    backends::{BackendGroup, MessageEvent},
+    backends::{BackendGroup, Backoff, MessageEvent},
     core::{Author, Avatar, Message, Source},
     database::{Database, Link},
 };
@@ -179,12 +179,22 @@ impl super::Backend for TelegramBackend {
             .await
             .map_err(|e| -> Box<dyn Error> { e })?;
         tasks.spawn(async move {
+            let mut backoff = Backoff::new();
             loop {
+                // grammers reconnects on the next request, and fetches the updates it missed
                 let update = match stream.next().await {
-                    Ok(update) => update,
+                    Ok(update) => {
+                        backoff.reset();
+                        update
+                    }
                     Err(e) => {
-                        warn!("TelegramBackend '{}' stopped receiving: {e}", context.name);
-                        break;
+                        let delay = backoff.next_delay();
+                        warn!(
+                            "TelegramBackend '{}' failed to receive updates, retrying in {delay:?}: {e}",
+                            context.name
+                        );
+                        tokio::time::sleep(delay).await;
+                        continue;
                     }
                 };
                 if let Err(e) = receive(&context, &chats, update).await {

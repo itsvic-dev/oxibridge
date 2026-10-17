@@ -1,4 +1,4 @@
-use std::{error::Error, sync::Arc};
+use std::{error::Error, sync::Arc, time::Duration};
 
 use crate::{
     config::{BackendConfig, GroupBackendConfig},
@@ -131,6 +131,32 @@ impl GroupReceiver {
     }
 }
 
+/// Exponential delay between attempts to reconnect to a platform.
+pub struct Backoff {
+    delay: Duration,
+}
+
+impl Backoff {
+    const MIN: Duration = Duration::from_secs(1);
+    const MAX: Duration = Duration::from_mins(5);
+
+    pub const fn new() -> Self {
+        Self { delay: Self::MIN }
+    }
+
+    /// Returns the delay before the next attempt, and doubles it for the attempt after.
+    pub fn next_delay(&mut self) -> Duration {
+        let delay = self.delay;
+        self.delay = delay.saturating_mul(2).min(Self::MAX);
+        delay
+    }
+
+    /// Call after an attempt succeeds, so that the next failure is retried quickly.
+    pub const fn reset(&mut self) {
+        self.delay = Self::MIN;
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct BackendMessage {
     pub group_name: String,
@@ -147,4 +173,25 @@ pub enum MessageEvent {
     Reactions(crate::core::Message),
     /// Carries the ID of the deleted message.
     Delete(i64),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn backoff_doubles_up_to_the_maximum() {
+        let mut backoff = Backoff::new();
+        let delays: Vec<_> = (0..11).map(|_| backoff.next_delay().as_secs()).collect();
+        assert_eq!(delays, [1, 2, 4, 8, 16, 32, 64, 128, 256, 300, 300]);
+    }
+
+    #[test]
+    fn backoff_starts_over_after_a_reset() {
+        let mut backoff = Backoff::new();
+        backoff.next_delay();
+        backoff.next_delay();
+        backoff.reset();
+        assert_eq!(backoff.next_delay().as_secs(), 1);
+    }
 }
