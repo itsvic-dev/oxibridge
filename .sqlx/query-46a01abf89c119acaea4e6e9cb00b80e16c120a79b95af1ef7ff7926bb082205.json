@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO message_links (message_id, backend, chat, platform_id) VALUES (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "46a01abf89c119acaea4e6e9cb00b80e16c120a79b95af1ef7ff7926bb082205"
+}

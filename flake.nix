@@ -14,7 +14,10 @@
 
       checks = forAllSystems (system:
         let pkgs = nixpkgs.legacyPackages.${system};
-        in { default = pkgs.callPackage ./nix/test.nix { inherit self; }; });
+        in {
+          default = pkgs.callPackage ./nix/test.nix { inherit self; };
+          irc = pkgs.callPackage ./nix/test-irc.nix { inherit self; };
+        });
 
       nixosModules = rec {
         oxibridge = import ./nix/module.nix self;

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO reactions (message_id, backend, emoji, count) VALUES (?, ?, ?, ?)\n            ON CONFLICT (message_id, backend, emoji) DO UPDATE SET count = count + excluded.count",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "0efdb02e8aad7fb26ba1cd1897275e90fb36600fb59424b3babcc526fd6ab9fa"
+}

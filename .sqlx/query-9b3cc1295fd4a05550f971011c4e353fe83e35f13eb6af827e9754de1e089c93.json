@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT backend, emoji, count FROM reactions WHERE message_id = ? ORDER BY rowid",
+  "describe": {
+    "columns": [
+      {
+        "name": "backend",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "reactions",
+            "name": "backend"
+          }
+        }
+      },
+      {
+        "name": "emoji",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "reactions",
+            "name": "emoji"
+          }
+        }
+      },
+      {
+        "name": "count",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "reactions",
+            "name": "count"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "9b3cc1295fd4a05550f971011c4e353fe83e35f13eb6af827e9754de1e089c93"
+}

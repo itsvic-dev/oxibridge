@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT backend FROM messages WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "backend",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "messages",
+            "name": "backend"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "b821d7b73deac9c7d23965c2b5b6e6571c94af5f14c8797dd714e031d1d36746"
+}

@@ -1,0 +1,14 @@
+backends:
+  src:
+    kind: file
+    path: ./nix/src.txt
+  dst:
+    kind: file
+    path: /tmp/dst.txt
+
+groups:
+  test:
+    src:
+      readonly: true
+    dst:
+      writeonly: true

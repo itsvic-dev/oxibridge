@@ -1,20 +1,10 @@
-# This is the configuration file for Oxibridge.
-# As of right now, all fields are required unless noted otherwise.
-# This may change if I ever add more platforms in the future.
+# Several config files can be merged by listing them in CONFIG_FILE, separated by ':'.
 
-# This configuration is shared between different platforms.
-shared:
-  discord_token: "PLACEHOLDER"
-  telegram_token: "PLACEHOLDER"
+global:
+  # Optional. SQLite database of bridged messages and backend state. Default: oxibridge.db
+  database: oxibridge.db
 
-  # Optional. Irc bridge
-  # irc:
-  #   server: "PLACEHOLDER"
-  #   port: 6667
-  #   nickname: "Oxibridge"
-  #   use_tls: false
-
-  # Optional. Used for avatars on Discord
+  # Optional. Hosts Telegram avatars for Discord without exposing the bot token. Without it, Telegram users have no avatar on Discord.
   r2:
     bucket_name: "oxibridge-avatars"
     account_id: ""
@@ -22,11 +12,39 @@ shared:
     access_key: ""
     secret_key: ""
 
-# You can define multiple groups here to bridge multiple channels.
+# Each backend is one account on one platform. Groups refer to backends by name.
+backends:
+  telegram01:
+    kind: telegram
+    # Bot token from @BotFather on Telegram. Make the bot an admin to bridge reactions.
+    token: "PLACEHOLDER"
+    # API ID and hash from https://my.telegram.org
+    api_id: 12345
+    api_hash: "PLACEHOLDER"
+
+  discord01:
+    kind: discord
+    # Needs the Message Content intent, and View Channels, Read Message History, Manage Webhooks (536937472)
+    token: "PLACEHOLDER"
+
+  libera:
+    kind: irc
+    server: irc.libera.chat
+    nickname: oxibridge
+    # Optional. Defaults to 6697 with TLS and 6667 without
+    port: 6697
+    # Optional. Default: true
+    use_tls: true
+
+# A group bridges one chat of each of its backends.
 groups:
-  - telegram_chat: -1001234567890
-    discord:
+  example_group:
+    telegram01:
+      # Bot API chat ID: supergroups and channels start with -100
+      chat: -1001234567890
+    discord01:
       channel: 1234567890000
-      webhook: "WEBHOOK_URL_HERE"
-    # Optional. Irc bridge
-    # irc_channel: "#CHANNEL_NAME_HERE"
+    libera:
+      channel: "#oxibridge"
+      # Optional for every backend. readonly only reads from this chat, writeonly only writes to it.
+      readonly: false

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM message_links WHERE message_id = ? AND backend = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "e188ddcf65bcdfe08b4f7e1480e0c6fd002b97a884eb2c8089847701a31ccccf"
+}
