@@ -7,10 +7,10 @@ use irc::{
 };
 use log::{debug, warn};
 use serde::{Deserialize, Serialize};
-use tokio::task::JoinSet;
+use tokio::{sync::watch, task::JoinSet};
 
 use crate::{
-    backends::{BackendGroup, MessageEvent},
+    backends::{BackendGroup, Backoff, MessageEvent},
     core::{Author, Message, Source},
     database::Database,
 };
@@ -97,19 +97,22 @@ impl IrcBackend {
 #[async_trait::async_trait]
 impl super::Backend for IrcBackend {
     async fn start(&self, tasks: &mut JoinSet<()>) -> Result<(), Box<dyn Error>> {
-        let mut client = Client::from_config(self.client_config.clone()).await?;
-        client.identify()?;
-        let mut stream = client.stream()?;
-        let sender = client.sender();
+        let mut client = connect(&self.client_config).await?;
         debug!("IrcBackend '{}' connected", self.name);
+        let (sender_tx, sender_rx) = watch::channel(Some(client.sender()));
 
         for channel in self.channels.iter().filter(|c| !c.group.config.readonly) {
             let mut rx = channel.group.subscribe();
-            let sender = sender.clone();
+            let mut sender_rx = sender_rx.clone();
             let target = channel.name.clone();
             tasks.spawn(async move {
                 while let Some(message) = rx.recv().await {
-                    send_lines(&sender, &target, &render(&message.event));
+                    let Ok(sender) = sender_rx.wait_for(Option::is_some).await else {
+                        break;
+                    };
+                    if let Some(sender) = &*sender {
+                        send_lines(sender, &target, &render(&message.event));
+                    }
                 }
             });
         }
@@ -122,21 +125,52 @@ impl super::Backend for IrcBackend {
             .collect();
         let database = self.database.clone();
         let name = self.name.clone();
+        let config = self.client_config.clone();
         tasks.spawn(async move {
-            let _client = client;
-            while let Some(message) = stream.next().await {
-                match message {
-                    Ok(message) => receive(&database, &channels, &message).await,
-                    Err(e) => {
-                        warn!("IrcBackend '{name}' lost its connection: {e}");
-                        break;
-                    }
+            let mut backoff = Backoff::new();
+            loop {
+                match receive_all(&mut client, &database, &channels, &mut backoff).await {
+                    Ok(()) => warn!("IrcBackend '{name}' lost its connection"),
+                    Err(e) => warn!("IrcBackend '{name}' lost its connection: {e}"),
                 }
+                sender_tx.send_replace(None);
+                client = loop {
+                    let delay = backoff.next_delay();
+                    debug!("IrcBackend '{name}' reconnecting in {delay:?}");
+                    tokio::time::sleep(delay).await;
+                    match connect(&config).await {
+                        Ok(client) => break client,
+                        Err(e) => warn!("IrcBackend '{name}' failed to reconnect: {e}"),
+                    }
+                };
+                debug!("IrcBackend '{name}' reconnected");
+                sender_tx.send_replace(Some(client.sender()));
             }
         });
 
         Ok(())
     }
+}
+
+async fn connect(config: &irc::client::data::Config) -> irc::error::Result<Client> {
+    let client = Client::from_config(config.clone()).await?;
+    client.identify()?;
+    Ok(client)
+}
+
+/// Bridges messages from `client` until its connection ends.
+async fn receive_all(
+    client: &mut Client,
+    database: &Database,
+    channels: &[Channel],
+    backoff: &mut Backoff,
+) -> irc::error::Result<()> {
+    let mut stream = client.stream()?;
+    while let Some(message) = stream.next().await {
+        backoff.reset();
+        receive(database, channels, &message?).await;
+    }
+    Ok(())
 }
 
 fn send_lines(sender: &Sender, target: &str, lines: &[String]) {
