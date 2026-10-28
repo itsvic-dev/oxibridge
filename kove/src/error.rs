@@ -13,6 +13,13 @@ pub enum Error {
     TooLarge(u64),
     #[error("invalid JSON: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("WebSocket error: {0}")]
+    WebSocket(#[from] Box<tokio_tungstenite::tungstenite::Error>),
+    #[error("TLS setup failed: {0}")]
+    Tls(#[from] rustls::Error),
+    /// The gateway closed the connection with a code that a reconnect cannot fix, like `4004` for a bad token.
+    #[error("the gateway closed the connection with code {0}")]
+    GatewayClosed(u16),
 }
 
 impl Error {
@@ -34,5 +41,11 @@ impl Error {
             Self::Http(e) => e.status().map(|status| status.as_u16()),
             _ => None,
         }
+    }
+}
+
+impl From<tokio_tungstenite::tungstenite::Error> for Error {
+    fn from(value: tokio_tungstenite::tungstenite::Error) -> Self {
+        Self::WebSocket(Box::new(value))
     }
 }

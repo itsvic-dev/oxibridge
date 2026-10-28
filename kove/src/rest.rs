@@ -59,6 +59,10 @@ impl Client {
         &self.base_url
     }
 
+    pub(crate) fn token(&self) -> &str {
+        &self.token
+    }
+
     /// The WebSocket URL of the gateway on this server.
     #[must_use]
     pub fn gateway_url(&self) -> String {
