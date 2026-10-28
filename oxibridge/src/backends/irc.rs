@@ -193,6 +193,7 @@ async fn receive(database: &Database, channels: &[Channel], message: &IrcMessage
     };
 
     let author = Author {
+        user_id: Some(nickname.to_owned()),
         display_name: Some(nickname.to_owned()),
         username: nickname.to_owned(),
         avatar: None,
@@ -336,6 +337,7 @@ mod tests {
         Message {
             id: 1,
             author: Author {
+                user_id: None,
                 display_name: Some("Vic".to_owned()),
                 username: "vic".to_owned(),
                 avatar: None,

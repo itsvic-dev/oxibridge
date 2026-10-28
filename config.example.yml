@@ -27,6 +27,13 @@ backends:
     # Needs the Message Content intent, and View Channels, Read Message History, Manage Webhooks (536937472)
     token: "PLACEHOLDER"
 
+  kove01:
+    kind: kove
+    # Bot token from the developer portal. Needs the Use personas permission in each bridged channel.
+    token: "bot_PLACEHOLDER"
+    # Optional. Default: https://kove.social
+    base_url: https://staging.kove.social
+
   libera:
     kind: irc
     server: irc.libera.chat
@@ -44,6 +51,8 @@ groups:
       chat: -1001234567890
     discord01:
       channel: 1234567890000
+    kove01:
+      channel: "130294384384000000"
     libera:
       channel: "#oxibridge"
       # Optional for every backend. readonly only reads from this chat, writeonly only writes to it.

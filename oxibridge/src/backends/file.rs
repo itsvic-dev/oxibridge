@@ -125,6 +125,7 @@ impl super::Backend for FileBackend {
                         let mut message = Message {
                             id: 0,
                             author: Author {
+                                user_id: None,
                                 display_name: None,
                                 username: "file_backend".to_owned(),
                                 avatar: None,

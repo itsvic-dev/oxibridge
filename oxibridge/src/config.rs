@@ -103,6 +103,7 @@ pub enum BackendConfig {
     Irc(crate::backends::irc::Config),
     Telegram(crate::backends::telegram::Config),
     Discord(crate::backends::discord::Config),
+    Kove(crate::backends::kove::Config),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
