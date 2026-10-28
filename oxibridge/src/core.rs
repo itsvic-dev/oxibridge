@@ -215,9 +215,30 @@ pub struct Attachment {
     pub spoilered: bool,
 }
 
+/// Splits `text` into pieces of at most `max` characters, preferring to break at newlines.
+pub fn split_text(text: &str, max: usize) -> Vec<String> {
+    let mut pieces = vec![];
+    let mut rest = text;
+    while rest.chars().count() > max {
+        let limit = rest
+            .char_indices()
+            .nth(max)
+            .map_or(rest.len(), |(index, _)| index);
+        let window = rest.get(..limit).unwrap_or(rest);
+        let end = window.rfind('\n').filter(|&end| end > 0).unwrap_or(limit);
+        let (piece, tail) = rest.split_at(end);
+        pieces.push(piece.to_owned());
+        rest = tail.strip_prefix('\n').unwrap_or(tail);
+    }
+    if !rest.is_empty() {
+        pieces.push(rest.to_owned());
+    }
+    pieces
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Author, Source};
+    use super::{Author, Source, split_text};
 
     fn author(display_name: Option<&str>) -> Author {
         Author {
@@ -302,5 +323,29 @@ mod tests {
     #[test]
     fn uses_username_without_display_name() {
         assert_eq!(author(None).full_name(None), "nick");
+    }
+
+    #[test]
+    fn keeps_short_text_whole() {
+        assert_eq!(split_text("hello", 10), vec!["hello"]);
+    }
+
+    #[test]
+    fn splits_long_text_at_newlines() {
+        let first = "a".repeat(15);
+        let second = "b".repeat(10);
+        assert_eq!(
+            split_text(&format!("{first}\n{second}"), 20),
+            vec![first, second]
+        );
+    }
+
+    #[test]
+    fn splits_long_lines_at_the_limit() {
+        let pieces = split_text(&"é".repeat(25), 20);
+        assert_eq!(
+            pieces.iter().map(|p| p.chars().count()).collect::<Vec<_>>(),
+            vec![20, 5]
+        );
     }
 }

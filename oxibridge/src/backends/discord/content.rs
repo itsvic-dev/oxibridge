@@ -82,30 +82,9 @@ pub fn webhook_username(name: &str) -> String {
     }
 }
 
-/// Splits `text` into pieces Discord accepts, preferring to break at newlines.
-pub fn split(text: &str) -> Vec<String> {
-    let mut pieces = vec![];
-    let mut rest = text;
-    while rest.chars().count() > MAX_CONTENT_LENGTH {
-        let limit = rest
-            .char_indices()
-            .nth(MAX_CONTENT_LENGTH)
-            .map_or(rest.len(), |(index, _)| index);
-        let window = rest.get(..limit).unwrap_or(rest);
-        let end = window.rfind('\n').filter(|&end| end > 0).unwrap_or(limit);
-        let (piece, tail) = rest.split_at(end);
-        pieces.push(piece.to_owned());
-        rest = tail.strip_prefix('\n').unwrap_or(tail);
-    }
-    if !rest.is_empty() {
-        pieces.push(rest.to_owned());
-    }
-    pieces
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{MAX_CONTENT_LENGTH, split, to_core, webhook_username};
+    use super::{to_core, webhook_username};
 
     #[test]
     fn names_mentioned_users() {
@@ -151,27 +130,5 @@ mod tests {
     #[test]
     fn replaces_empty_usernames() {
         assert_eq!(webhook_username("  "), "unknown");
-    }
-
-    #[test]
-    fn keeps_short_messages_whole() {
-        assert_eq!(split("hello"), vec!["hello"]);
-    }
-
-    #[test]
-    fn splits_long_messages_at_newlines() {
-        let first = "a".repeat(1500);
-        let second = "b".repeat(1000);
-        assert_eq!(split(&format!("{first}\n{second}")), vec![first, second]);
-    }
-
-    #[test]
-    fn splits_long_lines_at_the_limit() {
-        let pieces = split(&"é".repeat(MAX_CONTENT_LENGTH + 5));
-        assert_eq!(pieces.len(), 2);
-        assert_eq!(
-            pieces.first().map(|p| p.chars().count()),
-            Some(MAX_CONTENT_LENGTH)
-        );
     }
 }

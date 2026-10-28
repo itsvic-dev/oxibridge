@@ -16,7 +16,7 @@ use tokio::{io::AsyncWriteExt, task::JoinSet};
 
 use crate::{
     backends::{BackendGroup, MessageEvent},
-    core::{Attachment, Author, Avatar, Message, Source},
+    core::{Attachment, Author, Avatar, Message, Source, split_text},
     database::{Database, Link},
     storage::R2Storage,
 };
@@ -210,7 +210,7 @@ async fn deliver(
             let (text, mentioned) = text_for(context, http, channel, message).await?;
             let (files, too_large) = uploads(message).await?;
             let text = text + &too_large;
-            let mut pieces = content::split(&text).into_iter();
+            let mut pieces = split_text(&text, content::MAX_CONTENT_LENGTH).into_iter();
             let username = content::webhook_username(&message.author.full_name(None));
             let allowed_mentions = CreateAllowedMentions::new().users(mentioned);
             let avatar = avatar_url(context, &message.author).await;
@@ -270,7 +270,10 @@ async fn deliver(
                 Some(summary) => format!("{text}\n-# {summary}"),
                 None => text,
             };
-            for (id, piece) in ids.into_iter().zip(content::split(&text)) {
+            for (id, piece) in ids
+                .into_iter()
+                .zip(split_text(&text, content::MAX_CONTENT_LENGTH))
+            {
                 let builder = EditWebhookMessage::new()
                     .content(piece)
                     .allowed_mentions(CreateAllowedMentions::new().users(mentioned.clone()));
