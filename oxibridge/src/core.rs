@@ -9,6 +9,7 @@ pub enum Source {
     Irc,
     Telegram,
     Discord,
+    Kove,
 }
 
 impl Source {
@@ -19,14 +20,21 @@ impl Source {
             Self::Irc => "irc",
             Self::Telegram => "tg",
             Self::Discord => "dc",
+            Self::Kove => "kv",
         }
     }
 
     /// The inverse of [`Self::tag`].
     pub fn from_tag(tag: &str) -> Option<Self> {
-        [Self::File, Self::Irc, Self::Telegram, Self::Discord]
-            .into_iter()
-            .find(|source| source.tag() == tag)
+        [
+            Self::File,
+            Self::Irc,
+            Self::Telegram,
+            Self::Discord,
+            Self::Kove,
+        ]
+        .into_iter()
+        .find(|source| source.tag() == tag)
     }
 
     /// Reads a mention like `@dc/name` at the start of `text`, and returns its length in bytes and the name.

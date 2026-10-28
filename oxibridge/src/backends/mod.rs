@@ -17,6 +17,7 @@ use tokio::{
 pub mod discord;
 pub mod file;
 pub mod irc;
+pub mod kove;
 pub mod telegram;
 
 /// Creates the backend described by `backend_config`.
@@ -56,6 +57,12 @@ pub fn get_backend(
             group_configs,
             database.clone(),
             storage.cloned(),
+        )?),
+        BackendConfig::Kove(config) => Box::new(kove::KoveBackend::new(
+            name,
+            config,
+            group_configs,
+            database.clone(),
         )?),
     })
 }

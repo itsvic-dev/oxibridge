@@ -6,12 +6,13 @@ description = "A bridge between messaging platforms"
 repository = "https://github.com/itsvic-dev/oxibridge"
 license = "GPL-3.0-or-later"
 readme = "../README.md"
-keywords = ["discord", "telegram", "bridge"]
+keywords = ["discord", "telegram", "kove", "bridge"]
 categories = ["command-line-utilities"]
 
 [dependencies]
 async-tempfile = "0.7.0"
 async-trait = "0.1.89"
+bytes = "1.10"
 color-eyre = { version = "0.6.5", default-features = false }
 futures = "0.3.31"
 log = "0.4.28"
@@ -29,6 +30,7 @@ irc = { version = "1.1", default-features = false, features = ["ctcp", "tls-rust
 grammers-client = { version = "0.10", default-features = false, features = ["fs"] }
 grammers-session = { version = "0.10", default-features = false, features = ["serde"] }
 serenity = { version = "0.12", default-features = false, features = ["builder", "client", "gateway", "model", "http", "utils", "rustls_backend"] }
+kove = { path = "../kove" }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 [lints]
