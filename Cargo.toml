@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["oxibridge"]
+members = ["kove", "oxibridge"]
 
 [workspace.lints.clippy]
 cargo = { level = "warn", priority = -1 }

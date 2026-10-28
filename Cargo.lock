@@ -1582,6 +1582,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "kove"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "log",
+ "percent-encoding",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.189"
 source = "registry+https://github.com/rust-lang/crates.io-index"
