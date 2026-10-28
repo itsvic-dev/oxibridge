@@ -614,6 +614,7 @@ fn mention_names(users: &[User]) -> Vec<(u64, String)> {
 
 fn author_of(user: &User, nickname: Option<&str>) -> Author {
     Author {
+        user_id: Some(user.id.to_string()),
         display_name: nickname
             .map(str::to_owned)
             .or_else(|| user.global_name.clone()),

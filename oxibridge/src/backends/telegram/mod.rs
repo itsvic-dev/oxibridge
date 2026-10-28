@@ -722,12 +722,13 @@ fn peer_name(peer: &Peer) -> Option<String> {
 fn author_of(message: &TgMessage) -> Author {
     let peer = message.sender().or_else(|| message.peer());
     let display_name = peer.and_then(peer_name);
-    let username = peer.and_then(Peer::username).map_or_else(
-        || message.sender_id().unwrap_or(message.peer_id()).to_string(),
-        str::to_owned,
-    );
+    let user_id = message.sender_id().unwrap_or(message.peer_id()).to_string();
+    let username = peer
+        .and_then(Peer::username)
+        .map_or_else(|| user_id.clone(), str::to_owned);
 
     Author {
+        user_id: Some(user_id),
         display_name,
         username,
         avatar: None,

@@ -64,6 +64,8 @@ impl Source {
 
 #[derive(Debug, Clone)]
 pub struct Author {
+    /// A stable ID of the user on their platform, which stays the same when they change their username.
+    pub user_id: Option<String>,
     pub display_name: Option<String>,
     pub username: String,
     pub avatar: Option<Avatar>,
@@ -145,6 +147,7 @@ impl From<&Author> for PartialAuthor {
 impl From<PartialAuthor> for Author {
     fn from(value: PartialAuthor) -> Self {
         Self {
+            user_id: None,
             display_name: value.display_name,
             username: value.username,
             avatar: None,
@@ -218,6 +221,7 @@ mod tests {
 
     fn author(display_name: Option<&str>) -> Author {
         Author {
+            user_id: None,
             display_name: display_name.map(str::to_owned),
             username: "nick".to_owned(),
             avatar: None,
